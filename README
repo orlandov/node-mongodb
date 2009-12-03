@@ -1,0 +1,17 @@
+Warning! Warning! Warning! Warning! Warning! Warning!  Warning! Warning!
+
+This package is EXPERIMENTAL, with emphasis on MENTAL. I am working on this in
+my spare time to learn the node.js, v8 and mongo API's. I am mixing C and C++.
+I am probably doing it totally wrong. It will probably leak memory like sieve.
+In fact, why are you reading this, run away before it's too late!
+
+Warning! Warning! Warning! Warning! Warning! Warning!  Warning! Warning!
+
+If that warning didn't scare you off then to build this package simply:
+
+- Make sure you have git installed.
+- ./update-mongo-c-driver.sh
+- node-waf configure build
+- node test_bson.js
+
+Patches, beer, flames, adoration welcome!

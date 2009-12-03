@@ -1,6 +1,6 @@
 import Options
 from os import unlink, symlink, popen
-from os.path import exists 
+from os.path import exists, abspath
 
 srcdir = '.'
 blddir = 'build'
@@ -13,10 +13,19 @@ def configure(conf):
   conf.check_tool('compiler_cxx')
   conf.check_tool('node_addon')
 
+  conf.env.append_value("LIBPATH_BSON", abspath("./mongo-c-driver/"))
+  conf.env.append_value("LIB_BSON",     "bson")
+  conf.env.append_value("CPPPATH_BSON", abspath("./mongo-c-driver/src"))
+
+  conf.env.append_value("LIBPATH_MONGO", abspath("./mongo-c-driver/"))
+  conf.env.append_value("LIB_MONGO",     "mongoc")
+  conf.env.append_value("CPPPATH_MONGO", abspath("./mongo-c-driver/src"))
+
 def build(bld):
   obj = bld.new_task_gen('cxx', 'shlib', 'node_addon')
   obj.target = 'bson'
   obj.source = "bson.cc"
+  obj.uselib = "BSON MONGO"
 
 def shutdown():
   # HACK to get binding.node out of build directory.
