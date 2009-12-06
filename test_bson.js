@@ -3,7 +3,7 @@ process.mixin(GLOBAL, require('mjsunit'));
 sys = require("sys");
 bson = require("./bson");
 
-function xxdCompare(expected, actual) {
+function xxdCompare(actual, expected) {
     var proc = process.createChildProcess("xxd", ["-i"]);
     var buffer = '';
 
@@ -57,7 +57,7 @@ function xxdPrint(str) {
 
     xxdCompare(
         bson.encode({ "javascript": "rocks", "mongodb": "rocks" }),
-        "\x2e\x00\x00\x00"          + // header
+        "\x2e\x00\x00\x00"          + // size
         "\x02javascript\x00"        + // key
         "\x06\x00\x00\x00rocks\x00" + // value
         "\x02mongodb\x00"           + // key
@@ -71,14 +71,14 @@ function xxdPrint(str) {
 
     xxdCompare(
         bson.encode({ "hello": 1 }),
-        "\x14\x00\x00\x00"                 + // header
+        "\x14\x00\x00\x00"                 + // size
         "\x01hello\x00"                    + // key
         "\x00\x00\x00\x00\x00\x00\xfd\x3f" + // value
         "\x00");
 
     xxdCompare(
         bson.encode({ "hello": 3.141 }),
-        "\x14\x00\x00\x00"                 + // header
+        "\x14\x00\x00\x00"                 + // size
         "\x01hello\x00"                    + // key
         "\x54\x5b\xfd\x20\x09\x40" + // value
         "\x00");
@@ -88,15 +88,32 @@ function xxdPrint(str) {
 {
     xxdCompare(
         bson.encode({ "hello": true }),
-        "\x0d\x00\x00\x00" + // header
+        "\x0d\x00\x00\x00" + // size
         "\x08hello\x00"    + // key
         "\x01"             + // value
         "\x00");
 
     xxdCompare(
         bson.encode({ "hello": false }),
-        "\x0d\x00\x00\x00" + // header
+        "\x0d\x00\x00\x00" + // size
         "\x08hello\x00"    + // key
         "\x00"             + // value
         "\x00");
 }
+
+
+{
+    xxdCompare(
+        bson.encode({ "great-old-ones": { "cthulhu": true } }),
+        "\x24\x00\x00\x00"     + // size
+        "\x03great-old-ones\0" + // type, key
+                                 // value:
+        "\x0f\x00\x00\x00"     + //   size
+        "\x08cthulhu\x00"      + //   type, key
+        "\x01"                 + //   value
+        "\x00"                 + //   eoo
+        "\x00"
+    );
+}
+
+
