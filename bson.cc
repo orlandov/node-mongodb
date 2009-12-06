@@ -8,30 +8,30 @@ extern "C" {
 using namespace v8;
 
 const char *
-ToCString(const v8::String::Utf8Value& value) {
+ToCString(const String::Utf8Value& value) {
   return *value ? *value : "<string conversion failed>";
 }
 
-void
+inline void
 encodeString(bson_buffer *bb, const char *name, const Local<Value> element) {
     String::Utf8Value v(element);
     const char *value = ToCString(v);
     bson_append_string(bb, name, value);
 }
 
-void
+inline void
 encodeNumber(bson_buffer *bb, const char *name, const Local<Value> element) {
     double value = element->NumberValue();
     bson_append_double(bb, name, value);
 }
 
-void
+inline void
 encodeInteger(bson_buffer *bb, const char *name, const Local<Value> element) {
     double value = element->NumberValue();
     bson_append_double(bb, name, value);
 }
 
-void
+inline void
 encodeBoolean(bson_buffer *bb, const char *name, const Local<Value> element) {
     bool value = element->IsTrue();
     bson_append_bool(bb, name, value);
@@ -51,7 +51,7 @@ bson encodeObject(const Local<Value> element) {
         Local<Value> prop_val = object->Get(prop_name->ToString());
 
         // convert the property name to a c string
-        v8::String::Utf8Value n(prop_name);
+        String::Utf8Value n(prop_name);
         const char *pname = ToCString(n);
        
         // append property using appropriate appender
@@ -89,11 +89,19 @@ encode(const Arguments &args) {
     return String::New(bson.data, bson_size(&bson));
 }
 
+Handle<Value>
+decode(const Arguments &args) {
+    HandleScope scope;
+    return Object::New();
+}
+
 extern "C" void
 init (Handle<Object> target) {
     HandleScope scope;
     target->Set(
         String::New("encode"),
         FunctionTemplate::New(encode)->GetFunction());
+    target->Set(
+        String::New("decode"),
+        FunctionTemplate::New(decode)->GetFunction());
 }
-
