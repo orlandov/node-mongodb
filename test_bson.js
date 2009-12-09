@@ -8,19 +8,16 @@ function xxdCompare(actual, expected) {
     var buffer = '';
 
     proc.addListener("output", function (data) {
-        sys.puts('output');
         if(data) buffer += data;
     });
 
     proc.addListener("exit", function (code) {
         // start the second process
-        sys.puts("second proc");
 
         var proc2 = process.createChildProcess("xxd", ["-i"]);
         var buffer2 = '';
 
         proc2.addListener("output", function (data) {
-            sys.puts('got here');
             if(data) buffer2 += data;
         });
 
@@ -46,12 +43,9 @@ function xxdPrint(str) {
     var buffer = '';
 
     proc.addListener("output", function (data) {
-        sys.puts("got a line");
         if (data) buffer += data;
     });
     proc.addListener("exit", function (code) {
-        sys.puts("xxdPrint");
-        sys.puts("buffer was ");
         sys.puts(buffer);        
     });
     proc.write(str, 'binary');
@@ -167,4 +161,19 @@ function xxdPrint(str) {
         "\xcd\xcc\xcc\xcc\xcc\xcc\x10\x40" + // value
         "\x00");
     assertEquals(4.20, o.hello);
+}
+
+// objects
+{
+    var o = bson.decode(
+        "\x1c\x00\x00\x00"     + // size
+        "\x03ronnie\0"         + // type, key
+                                 // value:
+        "\x0f\x00\x00\x00"     + //   size
+        "\x08cthulhu\x00"      + //   type, key
+        "\x01"                 + //   value
+        "\x00"                 + //   eoo
+        "\x00");
+
+    assertEquals(true, o.ronnie.cthulhu);
 }

@@ -22,15 +22,13 @@ encodeString(bson_buffer *bb, const char *name, const Local<Value> element) {
 
 inline void
 encodeNumber(bson_buffer *bb, const char *name, const Local<Value> element) {
-    double value(element->ToNumber()->NumberValue());
-    printf("this is an number %010f\n", value);
+    double value(element->NumberValue());
     bson_append_double(bb, name, value);
 }
 
 inline void
 encodeInteger(bson_buffer *bb, const char *name, const Local<Value> element) {
     int value(element->NumberValue());
-    printf("this is an int %d\n", value);
     bson_append_int(bb, name, value);
 }
 
@@ -94,6 +92,7 @@ encode(const Arguments &args) {
 
 Handle<Value>
 decodeObject(const Local<Value> str) {
+    HandleScope scope;
     size_t buflen = str->ToString()->Length();
     char buf[buflen];
     node::DecodeWrite(buf, buflen, str, node::BINARY);
@@ -105,23 +104,30 @@ decodeObject(const Local<Value> str) {
     while (bson_iterator_next(&it)) {
         bson_type type = bson_iterator_type(&it);
         const char *key = bson_iterator_key(&it);
-        printf("key was %s\n", key);
 
         if (type == bson_string) {
             const char *val = bson_iterator_string(&it);
-            printf("val was %s\n", val);
             obj->Set(String::New(key), String::New(val));
         }
         else if (type == bson_int) {
             int val = bson_iterator_int(&it);
-            printf("val was int %d\n", val);
             obj->Set(String::New(key), Number::New(val));
         }
         else if (type == bson_double) {
             double val = bson_iterator_double_raw(&it);
-            printf("buflen %d", buflen);
-            printf("val was double %05f\n", val);
             obj->Set(String::New(key), Number::New(val));
+        }
+        else if (type == bson_object) {
+            bson bson;
+            bson_iterator_subobject(&it, &bson);
+            Local<Value> str = node::Encode(bson.data, bson_size(&bson), node::BINARY);
+            Handle<Value> sub = decodeObject(str);
+            obj->Set(String::New(key), sub);
+        }
+        else if (type == bson_bool) {
+            bson_bool_t val = bson_iterator_bool(&it);
+            obj->Set(String::New(key), Boolean::New(val));
+
         }
     }
 
