@@ -1,4 +1,5 @@
 #include <v8.h>
+#include <node.h>
 
 extern "C" {
     #define MONGO_HAVE_STDINT
@@ -15,25 +16,27 @@ ToCString(const String::Utf8Value& value) {
 inline void
 encodeString(bson_buffer *bb, const char *name, const Local<Value> element) {
     String::Utf8Value v(element);
-    const char *value = ToCString(v);
+    const char *value(ToCString(v));
     bson_append_string(bb, name, value);
 }
 
 inline void
 encodeNumber(bson_buffer *bb, const char *name, const Local<Value> element) {
-    double value = element->NumberValue();
+    double value(element->ToNumber()->NumberValue());
+    printf("this is an number %010f\n", value);
     bson_append_double(bb, name, value);
 }
 
 inline void
 encodeInteger(bson_buffer *bb, const char *name, const Local<Value> element) {
-    double value = element->NumberValue();
-    bson_append_double(bb, name, value);
+    int value(element->NumberValue());
+    printf("this is an int %d\n", value);
+    bson_append_int(bb, name, value);
 }
 
 inline void
 encodeBoolean(bson_buffer *bb, const char *name, const Local<Value> element) {
-    bool value = element->IsTrue();
+    bool value(element->IsTrue());
     bson_append_bool(bb, name, value);
 }
 
@@ -86,13 +89,49 @@ encode(const Arguments &args) {
 
     bson bson(encodeObject(args[0]));
 
-    return String::New(bson.data, bson_size(&bson));
+    return node::Encode(bson.data, bson_size(&bson), node::BINARY);
+}
+
+Handle<Value>
+decodeObject(const Local<Value> str) {
+    size_t buflen = str->ToString()->Length();
+    char buf[buflen];
+    node::DecodeWrite(buf, buflen, str, node::BINARY);
+
+    bson_iterator it;
+    bson_iterator_init(&it, buf);
+    Local<Object> obj = Object::New();
+
+    while (bson_iterator_next(&it)) {
+        bson_type type = bson_iterator_type(&it);
+        const char *key = bson_iterator_key(&it);
+        printf("key was %s\n", key);
+
+        if (type == bson_string) {
+            const char *val = bson_iterator_string(&it);
+            printf("val was %s\n", val);
+            obj->Set(String::New(key), String::New(val));
+        }
+        else if (type == bson_int) {
+            int val = bson_iterator_int(&it);
+            printf("val was int %d\n", val);
+            obj->Set(String::New(key), Number::New(val));
+        }
+        else if (type == bson_double) {
+            double val = bson_iterator_double_raw(&it);
+            printf("buflen %d", buflen);
+            printf("val was double %05f\n", val);
+            obj->Set(String::New(key), Number::New(val));
+        }
+    }
+
+    return obj;
 }
 
 Handle<Value>
 decode(const Arguments &args) {
     HandleScope scope;
-    return Object::New();
+    return decodeObject(args[0]);
 }
 
 extern "C" void

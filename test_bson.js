@@ -8,46 +8,59 @@ function xxdCompare(actual, expected) {
     var buffer = '';
 
     proc.addListener("output", function (data) {
-        buffer += data;
+        sys.puts('output');
+        if(data) buffer += data;
     });
 
     proc.addListener("exit", function (code) {
         // start the second process
+        sys.puts("second proc");
 
         var proc2 = process.createChildProcess("xxd", ["-i"]);
         var buffer2 = '';
 
         proc2.addListener("output", function (data) {
-            buffer2 += data;
+            sys.puts('got here');
+            if(data) buffer2 += data;
         });
 
         proc2.addListener("exit", function (code) {
+            sys.puts("---------------");
+            sys.puts(buffer);
+            sys.puts(buffer2);
+            sys.puts("===============");
             assertEquals(buffer, buffer2);    
         });
 
-        proc2.write(actual);
+        proc2.write(actual, 'binary');
         proc2.close();
     });
 
-    proc.write(expected);
+    proc.write(expected, 'binary');
     proc.close();
 }
 
+
 function xxdPrint(str) {
-    var proc = process.createChildProcess("xxd");
+    var proc = process.createChildProcess("/usr/bin/xxd", ["-i"]);
     var buffer = '';
 
     proc.addListener("output", function (data) {
         sys.puts("got a line");
-        buffer += data;
+        if (data) buffer += data;
     });
     proc.addListener("exit", function (code) {
+        sys.puts("xxdPrint");
         sys.puts("buffer was ");
         sys.puts(buffer);        
     });
-    proc.write(str);
+    proc.write(str, 'binary');
     proc.close();
 }
+
+/*
+    Encoding
+*/
 
 // strings
 {
@@ -71,16 +84,16 @@ function xxdPrint(str) {
 
     xxdCompare(
         bson.encode({ "hello": 1 }),
-        "\x14\x00\x00\x00"                 + // size
-        "\x01hello\x00"                    + // key
-        "\x00\x00\x00\x00\x00\x00\xfd\x3f" + // value
+        "\x10\x00\x00\x00"                 + // size
+        "\x10hello\x00"                    + // key
+        "\x01\x00\x00\x00" + // value
         "\x00");
 
     xxdCompare(
-        bson.encode({ "hello": 3.141 }),
+        bson.encode({ "hello": 4.20 }),
         "\x14\x00\x00\x00"                 + // size
         "\x01hello\x00"                    + // key
-        "\x54\x5b\xfd\x20\x09\x40" + // value
+        "\xcd\xcc\xcc\xcc\xcc\xcc\x10\x40" +
         "\x00");
 }
 
@@ -101,7 +114,7 @@ function xxdPrint(str) {
         "\x00");
 }
 
-
+// nested objects
 {
     xxdCompare(
         bson.encode({ "great-old-ones": { "cthulhu": true } }),
@@ -116,10 +129,42 @@ function xxdPrint(str) {
     );
 }
 
-// Decoding
+/*
+    Decoding
+*/
 
+// strings
 {
-    o = bson.decode(
+    var o = bson.decode(
         "\x16\x00\x00\x00\x02hello\x00\x06\x00\x00\x00world\x00\x00");
-    assertEquals("world", o.hello);
+    assertEquals(o.hello, "world");
+
+    o = bson.decode(
+        "\x2e\x00\x00\x00"          + // size
+        "\x02javascript\x00"        + // key
+        "\x06\x00\x00\x00rocks\x00" + // value
+        "\x02mongodb\x00"           + // key
+        "\x06\x00\x00\x00rocks\x00" + // value
+        "\x00"
+    );
+    assertEquals(o.javascript, "rocks");
+    assertEquals(o.mongodb, "rocks");
+}
+
+// numbers
+{
+
+    var o = bson.decode(
+           "\x14\x00\x00\x00"                 + // size
+           "\x10hello\x00"                    + // key
+           "\x01\x00\x00\x00" + // value
+           "\x00");
+    assertEquals(1, o.hello);
+
+    o = bson.decode(
+        "\x14\x00\x00\x00"                 + // size
+        "\x01hello\x00"                    + // key
+        "\xcd\xcc\xcc\xcc\xcc\xcc\x10\x40" + // value
+        "\x00");
+    assertEquals(4.20, o.hello);
 }
