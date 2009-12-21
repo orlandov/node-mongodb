@@ -22,16 +22,21 @@ def configure(conf):
   conf.env.append_value("CPPPATH_MONGO", abspath("./mongo-c-driver/src"))
 
 def build(bld):
-  obj = bld.new_task_gen('cxx', 'shlib', 'node_addon')
-  obj.target = 'bson'
-  obj.source = "bson.cc"
-  obj.uselib = "BSON MONGO"
+#   bson = bld.new_task_gen('cxx', 'shlib', 'node_addon')
+#   bson.target = 'bson'
+#   bson.source = "bson.cc"
+#   bson.uselib = "BSON MONGO"
+
+  mongo = bld.new_task_gen('cxx', 'shlib', 'node_addon')
+  mongo.target = 'mongo'
+  mongo.source = "mongo.cc bson.cc"
+  mongo.uselib = "MONGO BSON"
 
 def shutdown():
   # HACK to get binding.node out of build directory.
   # better way to do this?
   if Options.commands['clean']:
-    if exists('bson.node'): unlink('bson.node')
+    if exists('mongo.node'): unlink('mongo.node')
   else:
-    if exists('build/default/bson.node') and not exists('bson.node'):
-      symlink('build/default/bson.node', 'bson.node')
+    if exists('build/default/mongo.node') and not exists('mongo.node'):
+      symlink('build/default/mongo.node', 'mongo.node')

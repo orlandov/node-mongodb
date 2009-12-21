@@ -3,7 +3,7 @@
 
 extern "C" {
     #define MONGO_HAVE_STDINT
-    #include "bson.h"
+    #include <bson.h>
 }
 
 using namespace v8;
@@ -90,12 +90,9 @@ encode(const Arguments &args) {
     return node::Encode(bson.data, bson_size(&bson), node::BINARY);
 }
 
-Handle<Value>
-decodeObject(const Local<Value> str) {
+Local<Value>
+decodeObjectStr(const char *buf) {
     HandleScope scope;
-    size_t buflen = str->ToString()->Length();
-    char buf[buflen];
-    node::DecodeWrite(buf, buflen, str, node::BINARY);
 
     bson_iterator it;
     bson_iterator_init(&it, buf);
@@ -104,6 +101,7 @@ decodeObject(const Local<Value> str) {
     while (bson_iterator_next(&it)) {
         bson_type type = bson_iterator_type(&it);
         const char *key = bson_iterator_key(&it);
+        //fprintf(stderr, "key was %s\n", key);
 
         if (type == bson_string) {
             const char *val = bson_iterator_string(&it);
@@ -120,8 +118,9 @@ decodeObject(const Local<Value> str) {
         else if (type == bson_object) {
             bson bson;
             bson_iterator_subobject(&it, &bson);
-            Local<Value> str = node::Encode(bson.data, bson_size(&bson), node::BINARY);
-            Handle<Value> sub = decodeObject(str);
+            //Local<Value> str = node::Encode(bson.data, bson_size(&bson), node::BINARY);
+            //Handle<Value> sub = decodeObject(str);
+            Handle<Value> sub = decodeObjectStr(bson.data);
             obj->Set(String::New(key), sub);
         }
         else if (type == bson_bool) {
@@ -131,7 +130,16 @@ decodeObject(const Local<Value> str) {
         }
     }
 
-    return obj;
+    return scope.Close(obj);
+}
+
+Handle<Value>
+decodeObject(const Local<Value> str) {
+    HandleScope scope;
+    size_t buflen = str->ToString()->Length();
+    char buf[buflen];
+    node::DecodeWrite(buf, buflen, str, node::BINARY);
+    return decodeObjectStr(buf);
 }
 
 Handle<Value>
@@ -140,13 +148,13 @@ decode(const Arguments &args) {
     return decodeObject(args[0]);
 }
 
-extern "C" void
-init (Handle<Object> target) {
-    HandleScope scope;
-    target->Set(
-        String::New("encode"),
-        FunctionTemplate::New(encode)->GetFunction());
-    target->Set(
-        String::New("decode"),
-        FunctionTemplate::New(decode)->GetFunction());
-}
+// extern "C" void
+// init (Handle<Object> target) {
+//     HandleScope scope;
+//     target->Set(
+//         String::New("encode"),
+//         FunctionTemplate::New(encode)->GetFunction());
+//     target->Set(
+//         String::New("decode"),
+//         FunctionTemplate::New(decode)->GetFunction());
+// }
