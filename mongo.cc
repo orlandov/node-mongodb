@@ -69,11 +69,31 @@ class Connection : public node::EventEmitter {
         target->Set(String::NewSymbol("Connection"), t->GetFunction());
     }
 
+    void StartReadWatcher() {
+        printf("*** Starting read watcher\n");
+        ev_io_start(EV_DEFAULT_ &read_watcher);
+    }
+
+    void StopReadWatcher() {
+        printf("*** Stopping read watcher\n");
+        ev_io_stop(EV_DEFAULT_ &read_watcher);
+    }
+
+    void StartWriteWatcher() {    
+        printf("*** Starting write watcher\n");
+        ev_io_start(EV_DEFAULT_ &write_watcher);
+    }
+
+    void StopWriteWatcher() {
+        printf("*** Stopping write watcher\n");
+        ev_io_stop(EV_DEFAULT_ &write_watcher);
+    }
+
     bool
     Connect(const char *host, const int32_t port) {
         mongo_connection_options opts;
         memcpy(opts.host, host, strlen(host)+1);
-        opts.host[254] = '\0';
+        opts.host[strlen(host)+1] = '\0';
         opts.port = port;
 
         printf("connecting! %s %d\n", host, port);
@@ -89,7 +109,7 @@ class Connection : public node::EventEmitter {
         ev_io_set(&read_watcher,  conn->sock, EV_READ);
         ev_io_set(&write_watcher, conn->sock, EV_WRITE);
 
-        ev_io_start(EV_DEFAULT_ &write_watcher);
+        StartWriteWatcher();
 
         Attach();
 
@@ -132,8 +152,8 @@ class Connection : public node::EventEmitter {
             buflen = 0;
 
             state = STATE_READ_HEAD;
-            ev_io_stop(&read_watcher);
-            ev_io_start(&write_watcher);
+            StopReadWatcher();
+            StartWriteWatcher();
             printf("listening for input again\n");
         }
     }
@@ -143,6 +163,7 @@ class Connection : public node::EventEmitter {
         HandleScope scope;
         if (cursor->mm && cursor->mm->fields.cursorID){
             char* data;
+            const int zero = 0;
             int sl = strlen(cursor->ns)+1;
             mongo_message * mm = mongo_message_create(16 /*header*/
                                                      +4 /*ZERO*/
@@ -151,7 +172,6 @@ class Connection : public node::EventEmitter {
                                                      +8 /*cursorID*/
                                                      , 0, 0, mongo_op_get_more);
             data = &mm->data;
-            int zero = 0;
             data = mongo_data_append32(data, &zero);
             data = mongo_data_append(data, cursor->ns, sl);
             data = mongo_data_append32(data, &zero);
@@ -159,34 +179,21 @@ class Connection : public node::EventEmitter {
             mongo_message_send(conn, mm);
             state = STATE_READ_HEAD;
 
-            ev_io_start(&read_watcher);
-            ev_io_stop(&write_watcher);
+            StartReadWatcher();
+            StopWriteWatcher();
+
             return true;
+
         } else {
-            printf("getting here\n");
+
             delete [] cursor->ns;
             free(cursor);
-            printf("cursor was %p\n", cursor);
             Emit("result", 1, reinterpret_cast<Handle<Value> *>(&results));
+            results.Dispose();
+            results.Clear();
             get_more = false;
-            printf("didn't have to sendmore!!!\n");
             return false;
         }
-    }
-
-    bool
-    GetMore(void) {
-        free(cursor->mm);
-
-        MONGO_TRY{
-            cursor->mm = mongo_read_response(cursor->conn);
-        }MONGO_CATCH{
-            cursor->mm = NULL;
-            mongo_cursor_destroy(cursor);
-            MONGO_RETHROW();
-        }
-
-        return cursor->mm && cursor->mm->fields.num;
     }
 
     void
@@ -239,8 +246,8 @@ class Connection : public node::EventEmitter {
             results->Set(Integer::New(i), val);
         }
 
-        ev_io_stop(&read_watcher);
-        ev_io_start(&write_watcher);
+        StopReadWatcher();
+        StartWriteWatcher();
         printf("end of readresponse\n");
 
         return;
@@ -315,7 +322,7 @@ class Connection : public node::EventEmitter {
         bson_empty(&query);
 
         node_mongo_find(conn, "test.widgets", &query, 0, 0, 0, 0);
-        ev_io_start(&read_watcher);
+        StartReadWatcher();
     }
 
     protected:
@@ -363,21 +370,21 @@ class Connection : public node::EventEmitter {
         connection->Find();
     }
 
-    void Event(ev_io *w, int revents) {
+    void Event(int revents) {
         if (revents & EV_WRITE) {
-            printf("-- got a write event\n");
-            ev_io_stop(&write_watcher);
+            printf("!!! got a write event\n");
+            StopWriteWatcher();
             if (get_more) {
                 SendGetMore();
             }
         }
         if (revents & EV_READ) {
-            printf("-- got a read event\n");
+            printf("!!! got a read event\n");
             ConsumeInput();
             CheckBufferContents();
         }
         if (revents & EV_ERROR) {
-            printf("--got an error event\n");
+            printf("!!! got an error event\n");
         }
     }
 
@@ -386,7 +393,7 @@ class Connection : public node::EventEmitter {
     static void
     io_event (EV_P_ ev_io *w, int revents) {
         Connection *connection = static_cast<Connection *>(w->data);
-        connection->Event(w, revents);
+        connection->Event(revents);
     }
 
     mongo_connection conn[1];
