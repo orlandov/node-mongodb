@@ -105,7 +105,7 @@ class Connection : public node::EventEmitter {
         ev_io_stop(EV_DEFAULT_ &write_watcher);
     }
 
-    bool Connect(const char *host, const int32_t port) {
+    bool Connect(const char *host, const int port) {
         mongo_connection_options opts;
         memcpy(opts.host, host, strlen(host)+1);
         opts.host[strlen(host)] = '\0';
@@ -207,11 +207,11 @@ class Connection : public node::EventEmitter {
         HandleScope scope;
         printf("parsing reply\n");
 
-        cursor = static_cast<mongo_cursor*>(bson_malloc(sizeof(mongo_cursor)));
+        cursor = new mongo_cursor;
         cursor->mm = out;
 
         int sl = strlen(NS)+1;
-        cursor->ns = static_cast<char *>(new char[sl]);
+        cursor->ns = new char[sl];
 
         memcpy(static_cast<void*>(const_cast<char*>(cursor->ns)), NS, sl);
         cursor->conn = conn;
@@ -324,7 +324,7 @@ class Connection : public node::EventEmitter {
         } else {
 
             delete [] cursor->ns;
-            free(cursor);
+            delete cursor;
             Emit("result", 1, reinterpret_cast<Handle<Value> *>(&results));
             results.Dispose();
             results.Clear();
