@@ -1,10 +1,12 @@
 import Options
 from os import unlink, symlink, popen
-from os.path import exists, abspath
+from os.path import exists, abspath, join as path_join
 
 srcdir = '.'
 blddir = 'build'
 VERSION = '0.0.1'
+
+mongo_install = "/opt/mongo"
 
 def set_options(opt):
   opt.tool_options('compiler_cxx')
@@ -21,6 +23,10 @@ def configure(conf):
   conf.env.append_value("LIB_MONGO",     "mongoc")
   conf.env.append_value("CPPPATH_MONGO", abspath("./mongo-c-driver/src"))
 
+  conf.env.append_value("LIBPATH_MONGOCLIENT", path_join(mongo_install, "lib"))
+  conf.env.append_value("LIB_MONGOCLIENT",     "mongoclient")
+  conf.env.append_value("CPPPATH_MONGOCLIENT", path_join(mongo_install, "include"))
+
 def build(bld):
 #   bson = bld.new_task_gen('cxx', 'shlib', 'node_addon')
 #   bson.target = 'bson'
@@ -30,7 +36,7 @@ def build(bld):
   mongo = bld.new_task_gen('cxx', 'shlib', 'node_addon')
   mongo.target = 'mongo'
   mongo.source = "mongo.cc bson.cc"
-  mongo.uselib = "MONGO BSON"
+  mongo.uselib = "MONGO BSON MONGOCLIENT"
 
 def shutdown():
   # HACK to get binding.node out of build directory.

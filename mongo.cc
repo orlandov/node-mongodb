@@ -2,26 +2,42 @@
 #include <unistd.h>
 #include <errno.h>
 #include <string.h>
+
 #include <v8.h>
+
 #include <node.h>
 #include <node_events.h>
+
 #include <fcntl.h>
+
+const int VERSION = 1;
+const int VERSION_MINOR = 0;
+
+#include <mongo/stdafx.h>
+#include <mongo/client/dbclient.h>
+#include <mongo/db/dbmessage.h>
+#include <mongo/util/message.h>
 
 extern "C" {
     #define MONGO_HAVE_STDINT
     #include <bson.h>
     #include <mongo.h>
     #include <platform_hacks.h>
+
 }
 
 #define NS "test.widgets"
 
+
+const char HEADER_SIZE = mongo::MsgDataHeaderSize;
+
 const int chunk_size = 4094;
+
 using namespace v8;
+
 extern Local<Value> decodeObjectStr(const char *);
 enum ReadState {
     STATE_READ_HEAD,
-    STATE_READ_FIELDS,
     STATE_READ_MESSAGE,
     STATE_PARSE_MESSAGE,
 };
@@ -89,11 +105,10 @@ class Connection : public node::EventEmitter {
         ev_io_stop(EV_DEFAULT_ &write_watcher);
     }
 
-    bool
-    Connect(const char *host, const int32_t port) {
+    bool Connect(const char *host, const int32_t port) {
         mongo_connection_options opts;
         memcpy(opts.host, host, strlen(host)+1);
-        opts.host[strlen(host)+1] = '\0';
+        opts.host[strlen(host)] = '\0';
         opts.port = port;
 
         printf("connecting! %s %d\n", host, port);
@@ -116,29 +131,21 @@ class Connection : public node::EventEmitter {
         return true;
     }
 
-    void
-    CheckBufferContents(void) {
+    void CheckBufferContents(void) {
         if (state == STATE_READ_HEAD) {
-            if (buflen > sizeof(mongo_header)) {
+            if (buflen > HEADER_SIZE) {
                 printf("got enough for the head\n");
-                memcpy(&head, bufptr, sizeof(mongo_header));
                 printf("memcpy'd\n");
-                bufptr += sizeof(mongo_header);
-                state = STATE_READ_FIELDS;
-            }
-        }
-        if (state == STATE_READ_FIELDS) {
-            if (buflen > sizeof(mongo_header) + sizeof(mongo_reply_fields)) {
-                printf("got enough for the fields\n");
-                memcpy(&fields, bufptr, sizeof(mongo_reply_fields));
-                bufptr += sizeof(mongo_reply_fields);
+                bufptr += HEADER_SIZE;
                 state = STATE_READ_MESSAGE;
             }
         }
         if (state == STATE_READ_MESSAGE) {
+            mongo::MsgData *data = reinterpret_cast<mongo::MsgData *>(buf);
             printf("in read message\n");
             int len;
-            bson_little_endian32(&len, &head.len);
+            len = data->len;
+            printf("read message length was %d\n", len);
 
             if (len-buflen == 0) {
                 printf("its at zero!\n");
@@ -158,80 +165,49 @@ class Connection : public node::EventEmitter {
         }
     }
 
-    bool
-    SendGetMore(void) {
-        HandleScope scope;
-        if (cursor->mm && cursor->mm->fields.cursorID){
-            char* data;
-            const int zero = 0;
-            int sl = strlen(cursor->ns)+1;
-            mongo_message * mm = mongo_message_create(16 /*header*/
-                                                     +4 /*ZERO*/
-                                                     +sl
-                                                     +4 /*numToReturn*/
-                                                     +8 /*cursorID*/
-                                                     , 0, 0, mongo_op_get_more);
-            data = &mm->data;
-            data = mongo_data_append32(data, &zero);
-            data = mongo_data_append(data, cursor->ns, sl);
-            data = mongo_data_append32(data, &zero);
-            data = mongo_data_append64(data, &cursor->mm->fields.cursorID);
-            mongo_message_send(conn, mm);
-            state = STATE_READ_HEAD;
-
-            StartReadWatcher();
-            StopWriteWatcher();
-
-            return true;
-
-        } else {
-
-            delete [] cursor->ns;
-            free(cursor);
-            Emit("result", 1, reinterpret_cast<Handle<Value> *>(&results));
-            results.Dispose();
-            results.Clear();
-            get_more = false;
-            return false;
-        }
-    }
-
-    void
-    ParseMessage(void) {
+    void ParseMessage(void) {
         HandleScope scope;
         printf("in parse message\n");
 
+        mongo::QueryResult *data = reinterpret_cast<mongo::QueryResult *>(buf);
+        printf("in read message\n");
         int len;
-        bson_little_endian32(&len, &head.len);
+        len = data->len;
+        char outbuffer[len];
 
-        mongo_reply *out = reinterpret_cast<mongo_reply*>(new char[len]);
+        mongo_reply *out = reinterpret_cast<mongo_reply*>(outbuffer);
 
         out->head.len = len;
-        bson_little_endian32(&out->head.id, &head.id);
-        bson_little_endian32(&out->head.responseTo, &head.responseTo);
-        bson_little_endian32(&out->head.op, &head.op);
+        out->head.id = data->id;
+        out->head.responseTo = data->responseTo;
+        out->head.op = data->operation();
 
-        bson_little_endian32(&out->fields.flag, &fields.flag);
-        bson_little_endian64(&out->fields.cursorID, &fields.cursorID);
-        bson_little_endian32(&out->fields.start, &fields.start);
-        bson_little_endian32(&out->fields.num, &fields.num);
+        out->fields.flag = static_cast<int>(data->resultFlags());
+        printf("flags were %d", out->fields.flag);
 
-        printf("num = %d start = %d\n", fields.num, fields.start);
-        printf("num = %d start = %d\n", fields.num, fields.start);
+        out->fields.cursorID = data->cursorId;
+        out->fields.start = data->startingFrom;
+        out->fields.num = data->nReturned;
 
-        memcpy(&out->objs, bufptr, len-sizeof(head)-sizeof(fields));
+        printf("op was %d\n", out->head.op);
+        printf("test1\n");
 
-        cursor = static_cast<mongo_cursor*>(bson_malloc(sizeof(mongo_cursor)));
+        memcpy(&out->objs, data->data(), data->dataLen());
+        printf("test2.1\n");
+
+        printf("test3\n");
 
         ParseReply(out);
-        delete out;
+
+        printf("foobar1\n");
+        printf("foobar2\n");
     }
 
-    void
-    ParseReply(mongo_reply *out) {
+    void ParseReply(mongo_reply *out) {
         HandleScope scope;
         printf("parsing reply\n");
 
+        cursor = static_cast<mongo_cursor*>(bson_malloc(sizeof(mongo_cursor)));
         cursor->mm = out;
 
         int sl = strlen(NS)+1;
@@ -241,10 +217,13 @@ class Connection : public node::EventEmitter {
         cursor->conn = conn;
         cursor->current.data = NULL;
 
+        printf("test1\n");
         for (int i = results->Length(); AdvanceCursor(); i++){
+            printf("item %d\n", i);
             Local<Value> val = decodeObjectStr(cursor->current.data);
             results->Set(Integer::New(i), val);
         }
+        printf("test2\n");
 
         StopReadWatcher();
         StartWriteWatcher();
@@ -297,7 +276,7 @@ class Connection : public node::EventEmitter {
             else {
                 printf("buf is %d bytes\n", buflen);
                 printf("read %d bytes\n", readbuflen);
-                tmp = static_cast<char *>(new char[buflen+readbuflen]);
+                tmp = new char[buflen+readbuflen];
                 memset(tmp, 0, buflen+readbuflen);
 
                 if (buf) {
@@ -316,6 +295,44 @@ class Connection : public node::EventEmitter {
             }
         }
     }
+
+    bool SendGetMore(void) {
+        HandleScope scope;
+        if (cursor->mm && cursor->mm->fields.cursorID){
+            char* data;
+            const int zero = 0;
+            int sl = strlen(cursor->ns)+1;
+            mongo_message * mm = mongo_message_create(16 /*header*/
+                                                     +4 /*ZERO*/
+                                                     +sl
+                                                     +4 /*numToReturn*/
+                                                     +8 /*cursorID*/
+                                                     , 0, 0, mongo_op_get_more);
+            data = &mm->data;
+            data = mongo_data_append32(data, &zero);
+            data = mongo_data_append(data, cursor->ns, sl);
+            data = mongo_data_append32(data, &zero);
+            data = mongo_data_append64(data, &cursor->mm->fields.cursorID);
+            mongo_message_send(conn, mm);
+            state = STATE_READ_HEAD;
+
+            StartReadWatcher();
+            StopWriteWatcher();
+
+            return true;
+
+        } else {
+
+            delete [] cursor->ns;
+            free(cursor);
+            Emit("result", 1, reinterpret_cast<Handle<Value> *>(&results));
+            results.Dispose();
+            results.Clear();
+            get_more = false;
+            return false;
+        }
+    }
+
 
     bool Find(void) {
         bson query;
@@ -402,8 +419,6 @@ class Connection : public node::EventEmitter {
     bool get_more;
     ReadState state;
 
-    mongo_header head;
-    mongo_reply_fields fields;
     mongo_cursor *cursor;
 
     Persistent<Array> results;
