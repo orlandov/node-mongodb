@@ -43,7 +43,7 @@ def build(bld):
 
   mongo = bld.new_task_gen('cxx', 'shlib', 'node_addon')
   mongo.target = 'mongo'
-  mongo.source = "mongo.cc bson.cc %s %s" % (
+  mongo.source = "mongo.cc cursor.cc %s %s" % (
     path_join(mongo_scripting, 'v8_utils.cpp'),
     path_join(mongo_scripting, 'v8_wrapper.cpp'),
   )
