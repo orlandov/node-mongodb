@@ -6,7 +6,8 @@ srcdir = '.'
 blddir = 'build'
 VERSION = '0.0.1'
 
-mongo_install = "/opt/mongo"
+mongo_install = "/home/orlando/mongo-local"
+mongo_scripting = "../mongo/scripting"
 
 def set_options(opt):
   opt.tool_options('compiler_cxx')
@@ -27,6 +28,13 @@ def configure(conf):
   conf.env.append_value("LIB_MONGOCLIENT",     "mongoclient")
   conf.env.append_value("CPPPATH_MONGOCLIENT", path_join(mongo_install, "include"))
 
+  conf.env.append_value("LIBPATH_BOOST_THREAD", "/usr/lib")
+  conf.env.append_value("LIB_BOOST_THREAD",     "boost_thread")
+  conf.env.append_value("CPPPATH_BOOST_THREAD", "/usr/include")
+
+  conf.env.append_value("LIB_MONGOSCRIPTING",     "mongoclient")
+  conf.env.append_value("CPPPATH_MONGOSCRIPTING", mongo_scripting)
+
 def build(bld):
 #   bson = bld.new_task_gen('cxx', 'shlib', 'node_addon')
 #   bson.target = 'bson'
@@ -35,8 +43,12 @@ def build(bld):
 
   mongo = bld.new_task_gen('cxx', 'shlib', 'node_addon')
   mongo.target = 'mongo'
-  mongo.source = "mongo.cc bson.cc"
-  mongo.uselib = "MONGO BSON MONGOCLIENT"
+  mongo.source = "mongo.cc bson.cc %s %s" % (
+    path_join(mongo_scripting, 'v8_utils.cpp'),
+    path_join(mongo_scripting, 'v8_wrapper.cpp'),
+  )
+
+  mongo.uselib = "BOOST_THREAD MONGO BSON MONGOCLIENT MONGOSCRIPTING"
 
 def shutdown():
   # HACK to get binding.node out of build directory.

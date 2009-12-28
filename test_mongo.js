@@ -48,4 +48,4 @@ c.addListener("result", function (result) {
     sys.puts("\n");
 });
 
-c.find();
+c.find({foo:1});

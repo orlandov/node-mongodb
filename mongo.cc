@@ -13,10 +13,11 @@
 const int VERSION = 1;
 const int VERSION_MINOR = 0;
 
-#include <mongo/stdafx.h>
 #include <mongo/client/dbclient.h>
 #include <mongo/db/dbmessage.h>
 #include <mongo/util/message.h>
+#include <v8_wrapper.h>
+#include <v8_utils.h>
 
 extern "C" {
     #define MONGO_HAVE_STDINT
@@ -27,7 +28,6 @@ extern "C" {
 }
 
 #define NS "test.widgets"
-
 
 const char HEADER_SIZE = mongo::MsgDataHeaderSize;
 
@@ -338,7 +338,7 @@ class Connection : public node::EventEmitter {
         bson query;
         bson_empty(&query);
 
-        node_mongo_find(conn, "test.widgets", &query, 0, 0, 0, 0);
+        node_mongo_find(conn, NS, &query, 0, 0, 0, 0);
         StartReadWatcher();
     }
 
@@ -384,7 +384,14 @@ class Connection : public node::EventEmitter {
         Connection *connection = ObjectWrap::Unwrap<Connection>(args.This());
         HandleScope scope;
 
+        if (args.Length() > 1) {
+            printf("made it to here\n");
+            mongo::v8ToMongo(args[0]->ToObject());
+            printf("made it to here?\n");
+        }
+        
         connection->Find();
+        return Undefined();
     }
 
     void Event(int revents) {
