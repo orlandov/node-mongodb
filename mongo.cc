@@ -19,8 +19,8 @@ const int VERSION_MINOR = 0;
 #include <v8_wrapper.h>
 #include <v8_utils.h>
 
-#include "mongo.h"
 #include "cursor.h"
+#include "mongo.h"
 
 extern "C" {
     #define MONGO_HAVE_STDINT
@@ -28,7 +28,6 @@ extern "C" {
     #include <mongo.h>
     #include <platform_hacks.h>
 }
-
 
 using namespace std;
 using namespace v8;
@@ -135,14 +134,8 @@ void Connection::ParseMessage(void) {
     printf("test1\n");
 
     memcpy(&out->objs, data->data(), data->dataLen());
-    printf("test2.1\n");
-
-    printf("test3\n");
 
     ParseReply(out);
-
-    printf("foobar1\n");
-    printf("foobar2\n");
 }
 
 void Connection::ParseReply(mongo_reply *out) {
@@ -293,9 +286,9 @@ bool Connection::Find(void) {
 //
     mongo::Query q;
     const std::string ns("test.widgets");
-    auto_ptr<mongo::NodeMongoCursor> c(new mongo::NodeMongoCursor(conn.get(), ns, q.obj, 0, 0, 0, 0));
-    c->init();
-    c->reallySend();
+    node_cursor.reset(new NodeMongoCursor(conn.get(), ns, q.obj, 0, 0, 0, 0));
+    node_cursor->init();
+    node_cursor->reallySend();
 
     StartReadWatcher();
 }

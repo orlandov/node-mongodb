@@ -6,14 +6,13 @@
 #include <mongo/db/jsobj.h>
 #include <mongo/db/json.h>
 
-#include "mongo.h"
+namespace node_mongo {
+using namespace std;
 
-namespace mongo {
-
-extern void assembleRequest( const string &ns, BSONObj query, int nToReturn, int nToSkip, const BSONObj *fieldsToReturn, int queryOptions, Message &toSend );
+void assembleRequest( const string &ns, mongo::BSONObj query, int nToReturn, int nToSkip, const mongo::BSONObj *fieldsToReturn, int queryOptions, mongo::Message &toSend );
 
 /** Queries return a cursor object */
-class NodeMongoCursor : boost::noncopyable {
+class NodeMongoCursor {
     public:
     bool init();
     bool reallySend();
@@ -26,12 +25,12 @@ class NodeMongoCursor : boost::noncopyable {
       { $err: <string> }
       if you do not want to handle that yourself, call nextSafe().
       */
-    BSONObj next();
+    mongo::BSONObj next();
 
     /** throws AssertionException if get back { $err : ... } */
-    BSONObj nextSafe() {
-        BSONObj o = next();
-        BSONElement e = o.firstElement();
+    mongo::BSONObj nextSafe() {
+        mongo::BSONObj o = next();
+        mongo::BSONElement e = o.firstElement();
         assert( strcmp(e.fieldName(), "$err") != 0 );
         return o;
     }
@@ -58,7 +57,7 @@ class NodeMongoCursor : boost::noncopyable {
     }
 
     bool tailable() const {
-        return (opts & Option_CursorTailable) != 0;
+        return (opts & mongo::Option_CursorTailable) != 0;
     }
 
     bool hasResultFlag( int flag ){
@@ -67,8 +66,14 @@ class NodeMongoCursor : boost::noncopyable {
 
 
     public:
-    NodeMongoCursor( DBConnector *_connector, const string &_ns, BSONObj _query, int _nToReturn,
-            int _nToSkip, const BSONObj *_fieldsToReturn, int queryOptions ) :
+    NodeMongoCursor(
+            mongo::DBConnector *_connector,
+            const string &_ns,
+            mongo::BSONObj _query,
+            int _nToReturn,
+            int _nToSkip,
+            const mongo::BSONObj *_fieldsToReturn,
+            int queryOptions ) :
         connector(_connector),
         ns(_ns),
         query(_query),
@@ -76,11 +81,12 @@ class NodeMongoCursor : boost::noncopyable {
         nToSkip(_nToSkip),
         fieldsToReturn(_fieldsToReturn),
         opts(queryOptions),
-        m(new Message()),
+        m(new mongo::Message()),
         cursorId(0),
         nReturned(),
         pos(),
         data(),
+        toSend(new mongo::Message()),
         ownCursor_( true ) {
         }
 
@@ -103,15 +109,15 @@ class NodeMongoCursor : boost::noncopyable {
     void decouple() { ownCursor_ = false; }
 
     private:
-    Message toSend;
-    DBConnector *connector;
+    auto_ptr<mongo::Message> toSend;
+    mongo::DBConnector *connector;
     string ns;
-    BSONObj query;
+    mongo::BSONObj query;
     int nToReturn;
     int nToSkip;
-    const BSONObj *fieldsToReturn;
+    const mongo::BSONObj *fieldsToReturn;
     int opts;
-    auto_ptr<Message> m;
+    auto_ptr<mongo::Message> m;
 
     int resultFlags;
     long long cursorId;
@@ -172,6 +178,5 @@ class NodeMongoCursor : boost::noncopyable {
 //             }
 //         }
 // }
-    
 }
 #endif

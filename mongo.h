@@ -1,11 +1,17 @@
 #ifndef node_mongo_h
 #define node_mongo_h
+
 #include <v8.h>
 #include <node.h>
 #include <node_events.h>
 
-using namespace std;
-using namespace v8;
+#include <mongo/client/dbclient.h>
+#include <mongo/stdafx.h>
+#include <mongo/util/message.h>
+#include <mongo/db/jsobj.h>
+#include <mongo/db/json.h>
+
+#include "cursor.h"
 
 extern "C" {
     #define MONGO_HAVE_STDINT
@@ -15,6 +21,9 @@ extern "C" {
 }
 
 namespace node_mongo {
+
+using namespace std;
+using namespace v8;
 
 enum ReadState {
     STATE_READ_HEAD,
@@ -80,6 +89,7 @@ class Connection : public node::EventEmitter {
     auto_ptr<mongo::DBClientConnection> conn;
 
     mongo_cursor *cursor;
+    auto_ptr<NodeMongoCursor> node_cursor;
 
     Persistent<Array> results;
 
@@ -92,5 +102,4 @@ class Connection : public node::EventEmitter {
 };
 
 }
-
 #endif
