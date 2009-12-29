@@ -35,6 +35,11 @@ class NodeMongoCursor {
         return o;
     }
 
+    void setData(mongo::MsgData *d) {
+        m->reset();
+        m->setData(d, false);
+    }
+
     /**
       iterate the rest of the cursor and return the number if items
       */
@@ -107,6 +112,8 @@ class NodeMongoCursor {
 
     long long getCursorId() const { return cursorId; }
     void decouple() { ownCursor_ = false; }
+    void dataReceived();
+    void requestMore();
 
     private:
     auto_ptr<mongo::Message> toSend;
@@ -124,59 +131,8 @@ class NodeMongoCursor {
     int nReturned;
     int pos;
     const char *data;
-    void dataReceived();
-    void requestMore();
     bool ownCursor_;
 };
 
-// class NodeMongoCursor : public mongo::DBClientCursor {
-//     public:
-//         bool init() {
-//             Message toSend;
-//             if (! cursorId) {
-//                 printf("assembling request\n");
-//                 assembleRequest(ns, query, nToReturn, nToSkip, fieldsToReturn, opts, toSend);
-//             }
-//             else {
-//                 printf("building getmore buffer\n");
-//                 BufBuilder b;
-//                 b.append(opts);
-//                 b.append(ns.c_str());
-//                 b.append(nToReturn);
-//                 b.append(cursorId);
-//                 toSend.setData(dbGetMore, b.buf(), b.len());
-//             }
-//         }
-//         bool reallySend() {
-//             if (!connector->call(toSend, *m, false)) {
-//                 return false;
-//             }
-//         }
-// }
-
-// class NodeMongoCursor : public mongo::DBClientCursor {
-//     public:
-//         bool init() {
-//             Message toSend;
-//             if (! cursorId) {
-//                 printf("assembling request\n");
-//                 assembleRequest(ns, query, nToReturn, nToSkip, fieldsToReturn, opts, toSend);
-//             }
-//             else {
-//                 printf("building getmore buffer\n");
-//                 BufBuilder b;
-//                 b.append(opts);
-//                 b.append(ns.c_str());
-//                 b.append(nToReturn);
-//                 b.append(cursorId);
-//                 toSend.setData(dbGetMore, b.buf(), b.len());
-//             }
-//         }
-//         bool reallySend() {
-//             if (!connector->call(toSend, *m, false)) {
-//                 return false;
-//             }
-//         }
-// }
 }
 #endif

@@ -17,17 +17,9 @@ const int VERSION_MINOR = 0;
 #include <mongo/db/dbmessage.h>
 #include <mongo/util/message.h>
 #include <v8_wrapper.h>
-#include <v8_utils.h>
 
 #include "cursor.h"
 #include "mongo.h"
-
-extern "C" {
-    #define MONGO_HAVE_STDINT
-    #include <bson.h>
-    #include <mongo.h>
-    #include <platform_hacks.h>
-}
 
 using namespace std;
 using namespace v8;
@@ -95,6 +87,7 @@ void Connection::CheckBufferContents(void) {
     }
     if (state == STATE_PARSE_MESSAGE) {
         ParseMessage();
+        GetResults();
         delete [] buf;
         buf = bufptr = NULL;
         buflen = 0;
@@ -112,85 +105,29 @@ void Connection::ParseMessage(void) {
 
     mongo::QueryResult *data = reinterpret_cast<mongo::QueryResult *>(buf);
     printf("in read message\n");
-    int len;
-    len = data->len;
-    char outbuffer[len];
-
-    mongo_reply *out = reinterpret_cast<mongo_reply*>(outbuffer);
-
-    out->head.len = len;
-    out->head.id = data->id;
-    out->head.responseTo = data->responseTo;
-    out->head.op = data->operation();
-
-    out->fields.flag = static_cast<int>(data->resultFlags());
-    printf("flags were %d", out->fields.flag);
-
-    out->fields.cursorID = data->cursorId;
-    out->fields.start = data->startingFrom;
-    out->fields.num = data->nReturned;
-
-    printf("op was %d\n", out->head.op);
-    printf("test1\n");
-
-    memcpy(&out->objs, data->data(), data->dataLen());
-
-    ParseReply(out);
+    node_cursor->setData(data);
+    node_cursor->dataReceived();
 }
 
-void Connection::ParseReply(mongo_reply *out) {
+void Connection::GetResults() {
     HandleScope scope;
-    printf("parsing reply\n");
 
-    cursor = new mongo_cursor;
-    cursor->mm = out;
-
-    int sl = strlen(NS)+1;
-    cursor->ns = new char[sl];
-
-    memcpy(static_cast<void*>(const_cast<char*>(cursor->ns)), NS, sl);
-    //cursor->conn = conn;
-    cursor->current.data = NULL;
-
-    printf("test1\n");
-    for (int i = results->Length(); AdvanceCursor(); i++){
+    printf("in parse reply\n");
+    for (int i = results->Length(); node_cursor->more(); i++){
+        mongo::BSONObj obj(node_cursor->next());
         printf("item %d\n", i);
-        Local<Value> val = String::New("doesn't work");
+
+        Local<Value> val = mongo::mongoToV8(obj, false, false);
+        //Local<Value> val = String::New("foo");
+        //printf("item was %s\n", obj.toString().c_str());
         results->Set(Integer::New(i), val);
     }
+    get_more = true;
     printf("test2\n");
 
     StopReadWatcher();
     StartWriteWatcher();
     printf("end of readresponse\n");
-
-    return;
-}
-
-bool Connection::AdvanceCursor(void) {
-    char* bson_addr;
-
-    /* no data */
-    if (!cursor->mm || cursor->mm->fields.num == 0)
-        return false;
-
-    /* first */
-    if (cursor->current.data == NULL){
-        bson_init(&cursor->current, &cursor->mm->objs, 0);
-        return true;
-    }
-
-    bson_addr = cursor->current.data + bson_size(&cursor->current);
-    if (bson_addr >= ((char*)cursor->mm + cursor->mm->head.len)){
-        printf("i should be getting more here\n");
-        get_more = true;
-
-        // indicate that this is the last result
-        return false;
-    } else {
-        printf("advancing cursor by one object\n");
-        bson_init(&cursor->current, bson_addr, 0);
-    }
 }
 
 bool Connection::ConsumeInput(void) {
@@ -233,33 +170,19 @@ bool Connection::ConsumeInput(void) {
 
 bool Connection::SendGetMore(void) {
     HandleScope scope;
-    if (cursor->mm && cursor->mm->fields.cursorID){
-        char* data;
-        const int zero = 0;
-        int sl = strlen(cursor->ns)+1;
-        mongo_message * mm = mongo_message_create(16 /*header*/
-                                                 +4 /*ZERO*/
-                                                 +sl
-                                                 +4 /*numToReturn*/
-                                                 +8 /*cursorID*/
-                                                 , 0, 0, mongo_op_get_more);
-        data = &mm->data;
-        data = mongo_data_append32(data, &zero);
-        data = mongo_data_append(data, cursor->ns, sl);
-        data = mongo_data_append32(data, &zero);
-        data = mongo_data_append64(data, &cursor->mm->fields.cursorID);
-        //mongo_message_send(conn, mm);
+    printf("mabe sending out for more\n");
+    if (!node_cursor->isDead()) {
+        printf("sending out for more\n");
+        node_cursor->requestMore();
         state = STATE_READ_HEAD;
-
         StartReadWatcher();
         StopWriteWatcher();
 
         return true;
-
-    } else {
-
-        delete [] cursor->ns;
-        delete cursor;
+    }
+    else {
+        printf("dont have to send out, cursor id was 0!\n");
+        // clean up cursor here
         Emit("result", 1, reinterpret_cast<Handle<Value> *>(&results));
         results.Dispose();
         results.Clear();
@@ -269,21 +192,6 @@ bool Connection::SendGetMore(void) {
 }
 
 bool Connection::Find(void) {
-//         bson query;
-//         bson_empty(&query);
-
-    //node_mongo_find(conn, NS, &query, 0, 0, 0, 0);
-//         mongo::BSONObjBuilder b;
-//         mongo::BSONObj empty = b.obj();
-//         
-//         printf("here\n");
-//         auto_ptr<mongo::DBClientCursor> cursor = conn->query("tutorial.persons", empty);
-//         printf("or here\n");
-//         while( cursor->more() ) {
-//         printf("maybe here\n");
-//             cursor->next();
-//         }
-//
     mongo::Query q;
     const std::string ns("test.widgets");
     node_cursor.reset(new NodeMongoCursor(conn.get(), ns, q.obj, 0, 0, 0, 0));

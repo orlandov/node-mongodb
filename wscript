@@ -27,7 +27,6 @@ def configure(conf):
   conf.env.append_value("LIBPATH_MONGOCLIENT", path_join(mongo_install, "lib"))
   conf.env.append_value("LIB_MONGOCLIENT",     "mongoclient")
   conf.env.append_value("CPPPATH_MONGOCLIENT", path_join(mongo_install, "include"))
-
   conf.env.append_value("LIBPATH_BOOST_THREAD", "/usr/lib")
   conf.env.append_value("LIB_BOOST_THREAD",     "boost_thread")
   conf.env.append_value("CPPPATH_BOOST_THREAD", "/usr/include")
@@ -43,8 +42,7 @@ def build(bld):
 
   mongo = bld.new_task_gen('cxx', 'shlib', 'node_addon')
   mongo.target = 'mongo'
-  mongo.source = "mongo.cc cursor.cc %s %s" % (
-    path_join(mongo_scripting, 'v8_utils.cpp'),
+  mongo.source = "mongo.cc cursor.cc %s" % (
     path_join(mongo_scripting, 'v8_wrapper.cpp'),
   )
 

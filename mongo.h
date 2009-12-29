@@ -64,8 +64,7 @@ class Connection : public node::EventEmitter {
     bool Connect(const char *host, const int port);
     void CheckBufferContents(void);
     void ParseMessage(void);
-    void ParseReply(mongo_reply *out);
-    bool AdvanceCursor(void);
+    void GetResults();
     bool ConsumeInput(void);
     bool SendGetMore(void);
     bool Find(void);
@@ -88,7 +87,6 @@ class Connection : public node::EventEmitter {
     ReadState state;
     auto_ptr<mongo::DBClientConnection> conn;
 
-    mongo_cursor *cursor;
     auto_ptr<NodeMongoCursor> node_cursor;
 
     Persistent<Array> results;

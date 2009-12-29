@@ -44,11 +44,9 @@ bool NodeMongoCursor::init() {
 }
 bool NodeMongoCursor::reallySend() {
     connector->say(*toSend);
-//     if (!connector->call(toSend, *m, false)) {
-//         return false;
-//     }
+    return false;
 }
-/* ***************** */
+
 void NodeMongoCursor::requestMore() {
     assert( cursorId && pos == nReturned );
 
@@ -61,10 +59,7 @@ void NodeMongoCursor::requestMore() {
     mongo::Message toSend;
     toSend.setData(mongo::dbGetMore, b.buf(), b.len());
     auto_ptr<mongo::Message> response(new mongo::Message());
-    connector->call( toSend, *response );
-
-    m = response;
-    dataReceived();
+    connector->say(toSend);
 }
 
 void NodeMongoCursor::dataReceived() {
@@ -84,11 +79,6 @@ void NodeMongoCursor::dataReceived() {
     nReturned = qr->nReturned;
     pos = 0;
     data = qr->data();
-
-    connector->checkResponse( data, nReturned );
-    /* this assert would fire the way we currently work:
-       assert( nReturned || cursorId == 0 );
-       */
 }
 
     bool NodeMongoCursor::more() {
@@ -98,8 +88,9 @@ void NodeMongoCursor::dataReceived() {
         if ( cursorId == 0 )
             return false;
 
-        requestMore();
-        return pos < nReturned;
+        return false;
+        //requestMore();
+        //return pos < nReturned;
     }
 
 mongo::BSONObj NodeMongoCursor::next() {
