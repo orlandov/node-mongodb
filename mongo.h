@@ -13,13 +13,6 @@
 
 #include "cursor.h"
 
-extern "C" {
-    #define MONGO_HAVE_STDINT
-    #include <bson.h>
-    #include <mongo.h>
-    #include <platform_hacks.h>
-}
-
 namespace node_mongo {
 
 using namespace std;
