@@ -51,9 +51,12 @@ bson encodeObject(const Local<Value> element) {
         Local<Value> prop_name = properties->Get(Integer::New(i));
         Local<Value> prop_val = object->Get(prop_name->ToString());
 
+
         // convert the property name to a c string
         String::Utf8Value n(prop_name);
         const char *pname = ToCString(n);
+
+        printf("pname = %s\n", pname);
        
         // append property using appropriate appender
         if (prop_val->IsString()) {
