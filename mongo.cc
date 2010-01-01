@@ -93,7 +93,7 @@ class Connection : public node::EventEmitter {
     Connect(const char *host, const int32_t port) {
         mongo_connection_options opts;
         memcpy(opts.host, host, strlen(host)+1);
-        opts.host[strlen(host)+1] = '\0';
+        opts.host[strlen(host)] = '\0';
         opts.port = port;
 
         printf("connecting! %s %d\n", host, port);
@@ -163,7 +163,6 @@ class Connection : public node::EventEmitter {
         HandleScope scope;
         if (cursor->mm && cursor->mm->fields.cursorID){
             char* data;
-            const int zero = 0;
             int sl = strlen(cursor->ns)+1;
             mongo_message * mm = mongo_message_create(16 /*header*/
                                                      +4 /*ZERO*/
@@ -269,7 +268,14 @@ class Connection : public node::EventEmitter {
         bson_addr = cursor->current.data + bson_size(&cursor->current);
         if (bson_addr >= ((char*)cursor->mm + cursor->mm->head.len)){
             printf("i should be getting more here\n");
-            get_more = true;
+
+            if (! fields.cursorID) {
+                printf("end of the line, not going to get more\n");
+            }
+            else {
+                printf("cursor id had a valid value (%llu) so setting the get_more flag\n", fields.cursorID);
+                get_more = true;
+            }
 
             // indicate that this is the last result
             return false;

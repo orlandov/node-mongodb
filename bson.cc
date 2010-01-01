@@ -103,30 +103,43 @@ decodeObjectStr(const char *buf) {
         const char *key = bson_iterator_key(&it);
         //fprintf(stderr, "key was %s\n", key);
 
-        if (type == bson_string) {
-            const char *val = bson_iterator_string(&it);
-            obj->Set(String::New(key), String::New(val));
-        }
-        else if (type == bson_int) {
-            int val = bson_iterator_int(&it);
-            obj->Set(String::New(key), Number::New(val));
-        }
-        else if (type == bson_double) {
-            double val = bson_iterator_double_raw(&it);
-            obj->Set(String::New(key), Number::New(val));
-        }
-        else if (type == bson_object) {
-            bson bson;
-            bson_iterator_subobject(&it, &bson);
-            //Local<Value> str = node::Encode(bson.data, bson_size(&bson), node::BINARY);
-            //Handle<Value> sub = decodeObject(str);
-            Handle<Value> sub = decodeObjectStr(bson.data);
-            obj->Set(String::New(key), sub);
-        }
-        else if (type == bson_bool) {
-            bson_bool_t val = bson_iterator_bool(&it);
-            obj->Set(String::New(key), Boolean::New(val));
+        switch (type) {
+            case bson_string: 
+                {
+                    const char *val = bson_iterator_string(&it);
+                    obj->Set(String::New(key), String::New(val));
+                }
+                break;
 
+            case bson_int:
+                {
+                    int val = bson_iterator_int(&it);
+                    obj->Set(String::New(key), Number::New(val));
+                }
+                break;
+
+            case bson_double:
+                {
+                    double val = bson_iterator_double_raw(&it);
+                    obj->Set(String::New(key), Number::New(val));
+                }
+                break;
+
+            case bson_object:
+                {
+                    bson bson;
+                    bson_iterator_subobject(&it, &bson);
+                    Handle<Value> sub = decodeObjectStr(bson.data);
+                    obj->Set(String::New(key), sub);
+                }
+                break;
+
+            case bson_bool:
+                {
+                    bson_bool_t val = bson_iterator_bool(&it);
+                    obj->Set(String::New(key), Boolean::New(val));
+                }
+                break;
         }
     }
 
