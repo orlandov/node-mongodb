@@ -29,7 +29,7 @@ def configure(conf):
 def build(bld):
   mongo = bld.new_task_gen('cxx', 'shlib', 'node_addon')
   mongo.target = 'mongo'
-  mongo.source = "mongo.cc cursor.cc %s" % (
+  mongo.source = "mongo.cc cursor.cc connection.cc %s" % (
     path_join(mongo_scripting, 'v8_wrapper.cpp'),
   )
 

@@ -11,6 +11,7 @@
 #include <mongo/db/jsobj.h>
 #include <mongo/db/json.h>
 
+#include "connection.h"
 #include "cursor.h"
 
 namespace node_mongo {
@@ -78,7 +79,7 @@ class Connection : public node::EventEmitter {
     // states
     bool get_more;
     ReadState state;
-    auto_ptr<mongo::DBClientConnection> conn;
+    auto_ptr<NonBlockingConnection> conn;
 
     auto_ptr<NodeMongoCursor> node_cursor;
 

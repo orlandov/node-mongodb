@@ -211,7 +211,7 @@ Handle<Value> Connection::New (const Arguments& args) {
 
 Connection::Connection () : EventEmitter () {
     HandleScope scope;
-    conn.reset(new mongo::DBClientConnection());
+    conn.reset(new NonBlockingConnection());
     Handle<Array> r = Array::New();
     results = Persistent<Array>::New(r);
 
