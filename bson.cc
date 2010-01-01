@@ -101,36 +101,41 @@ decodeObjectStr(const char *buf) {
     while (bson_iterator_next(&it)) {
         bson_type type = bson_iterator_type(&it);
         const char *key = bson_iterator_key(&it);
-        //fprintf(stderr, "key was %s\n", key);
+        fprintf(stderr, "%d key was %s\n", type, key);
 
         switch (type) {
-            case bson_string: 
-                {
+            case bson_string: {
                     const char *val = bson_iterator_string(&it);
                     obj->Set(String::New(key), String::New(val));
                 }
                 break;
 
-            case bson_int:
-                {
-                    int val = bson_iterator_int(&it);
-                    obj->Set(String::New(key), Number::New(val));
+            case bson_object: {
+                    bson bson;
+                    bson_iterator_subobject(&it, &bson);
+                    Handle<Value> sub = decodeObjectStr(bson.data);
+                    obj->Set(String::New(key), sub);
                 }
                 break;
 
-            case bson_double:
-                {
+            case bson_oid: {
+                    char hex_oid[25] = { 0 };
+                    bson_oid_t *oid = bson_iterator_oid(&it);
+                    bson_oid_to_string(oid, hex_oid);
+                    printf("oid %s was %s\n", key, hex_oid);
+                    obj->Set(String::New(key), String::New(hex_oid));
+                }
+                break;
+
+            case bson_double: {
                     double val = bson_iterator_double_raw(&it);
                     obj->Set(String::New(key), Number::New(val));
                 }
                 break;
 
-            case bson_object:
-                {
-                    bson bson;
-                    bson_iterator_subobject(&it, &bson);
-                    Handle<Value> sub = decodeObjectStr(bson.data);
-                    obj->Set(String::New(key), sub);
+            case bson_int: {
+                    int val = bson_iterator_int(&it);
+                    obj->Set(String::New(key), Number::New(val));
                 }
                 break;
 
