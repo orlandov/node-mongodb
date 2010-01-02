@@ -1,7 +1,7 @@
 #!/bin/sh
 
 if [ ! -d mongo-c-driver ]; then
-    git clone git://github.com/mongodb/mongo-c-driver.git
+    git clone git://github.com/orlandov/mongo-c-driver.git
 fi
 
 cd mongo-c-driver
