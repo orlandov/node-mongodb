@@ -2,10 +2,13 @@
 #include <unistd.h>
 #include <errno.h>
 #include <string.h>
+#include <fcntl.h>
+#include <arpa/inet.h>
+
 #include <v8.h>
+
 #include <node.h>
 #include <node_events.h>
-#include <fcntl.h>
 
 extern "C" {
     #define MONGO_HAVE_STDINT
@@ -26,6 +29,11 @@ enum ReadState {
     STATE_READ_MESSAGE,
     STATE_PARSE_MESSAGE,
 };
+
+void setNonBlocking(int sock) {
+    int sockflags = fcntl(sock, F_GETFL, 0);
+    fcntl(sock, F_SETFL, sockflags | O_NONBLOCK);
+}
 
 void node_mongo_find(mongo_connection* conn, const char* ns, bson* query, bson* fields, int nToReturn, int nToSkip, int options) {
     int sl;
@@ -90,6 +98,76 @@ class Connection : public node::EventEmitter {
         ev_io_stop(EV_DEFAULT_ &write_watcher);
     }
 
+    void StartConnectWatcher() {
+        printf("*** Starting connect watcher\n");
+        ev_io_start(EV_DEFAULT_ &connect_watcher);
+    }
+
+    void StopConnectWatcher() {
+        printf("*** Stopping connect watcher\n");
+        ev_io_stop(EV_DEFAULT_ &connect_watcher);
+    }
+
+    void CreateConnection(mongo_connection_options *options) {
+    //    MONGO_INIT_EXCEPTION(&conn->exception);
+
+        conn->left_opts = (mongo_connection_options *)bson_malloc(sizeof(mongo_connection_options));
+        conn->right_opts = NULL;
+
+        if ( options ){
+            memcpy( conn->left_opts , options , sizeof( mongo_connection_options ) );
+        } else {
+            strcpy( conn->left_opts->host , "127.0.0.1" );
+            conn->left_opts->port = 27017;
+        }
+
+        MongoCreateSocket();
+    }
+
+    mongo_conn_return
+    MongoCreateSocket() {
+        /* setup */
+        conn->sock = 0;
+        conn->connected = 0;
+
+        memset( conn->sa.sin_zero , 0 , sizeof(conn->sa.sin_zero) );
+        conn->sa.sin_family = AF_INET;
+        conn->sa.sin_port = htons(conn->left_opts->port);
+        conn->sa.sin_addr.s_addr = inet_addr( conn->left_opts->host );
+        conn->addressSize = sizeof(conn->sa);
+
+        /* connect */
+        conn->sock = socket( AF_INET, SOCK_STREAM, 0 );
+        if ( conn->sock <= 0 ){
+            return mongo_conn_no_socket;
+        }
+
+        setNonBlocking(conn->sock);
+        int res = connect( conn->sock, (struct sockaddr*) &conn->sa, conn->addressSize);
+
+        assert(res < 0);
+        assert(errno == EINPROGRESS);
+
+        printf("res < 0: %d, errno == EINPROGRESS: %d\n",
+                res < 0, errno == EINPROGRESS);
+//         if (  ){
+//             return mongo_conn_fail;
+//         }
+
+        ev_io_set(&connect_watcher,  conn->sock, EV_WRITE);
+        StartConnectWatcher();
+    }
+
+    void Connected() {
+        /* nagle */
+        StopConnectWatcher();
+        setsockopt( conn->sock, IPPROTO_TCP, TCP_NODELAY, (char *) &one, sizeof(one) );
+
+        conn->connected = 1;
+
+        Emit("connection", 0, NULL);
+    }
+
     bool
     Connect(const char *host, const int32_t port) {
         mongo_connection_options opts;
@@ -99,15 +177,10 @@ class Connection : public node::EventEmitter {
 
         printf("connecting! %s %d\n", host, port);
 
-        if (mongo_connect(conn, &opts)) {
-            return false;
-        }
+        CreateConnection(&opts);
 
-        // enable non-blocking mode
-        int sockflags = fcntl(conn->sock, F_GETFL, 0);
-        fcntl(conn->sock, F_SETFL, sockflags | O_NONBLOCK);
+        setNonBlocking(conn->sock);
 
-        Emit("connection", 0, NULL);
         ev_io_set(&read_watcher,  conn->sock, EV_READ);
         ev_io_set(&write_watcher, conn->sock, EV_WRITE);
 
@@ -368,6 +441,8 @@ class Connection : public node::EventEmitter {
         read_watcher.data = this;
         ev_init(&write_watcher, io_event);
         write_watcher.data = this;
+        ev_init(&connect_watcher, connect_event);
+        connect_watcher.data = this;
     }
 
     static Handle<Value>
@@ -399,7 +474,8 @@ class Connection : public node::EventEmitter {
         return Undefined();
     }
 
-    void Event(int revents) {
+    void Event(EV_P_ ev_io *w, int revents) {
+
         if (revents & EV_WRITE) {
             printf("!!! got a write event\n");
             StopWriteWatcher();
@@ -423,9 +499,16 @@ class Connection : public node::EventEmitter {
     private:
 
     static void
+    connect_event(EV_P_ ev_io *w, int revents) {
+        printf("got a connect event\n");
+        Connection *connection = static_cast<Connection *>(w->data);
+        connection->Connected();
+    }
+
+    static void
     io_event (EV_P_ ev_io *w, int revents) {
         Connection *connection = static_cast<Connection *>(w->data);
-        connection->Event(revents);
+        connection->Event(w, revents);
     }
 
     mongo_connection conn[1];
@@ -446,6 +529,7 @@ class Connection : public node::EventEmitter {
 
     ev_io read_watcher;
     ev_io write_watcher;
+    ev_io connect_watcher;
 };
 
 extern "C" void

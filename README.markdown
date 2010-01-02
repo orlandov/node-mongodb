@@ -32,8 +32,10 @@ DESCRIPTION
 ===========
 
 This is an attempt at MongoDB bindings for Node.JS. The important thing here
-is to ensure that we never block on io. The MongoDB C drivers are used to
-interface with the database.
+is to ensure that we never let ourselves or any libraries block on IO. As
+such, I've tried to do my best to make sure that connect() and recv() never
+block, but there may be bugs. The MongoDB C drivers are used to interface with
+the database to the extent that the functions do not block.
 
 Installation
 ------------
