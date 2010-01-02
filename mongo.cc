@@ -192,7 +192,8 @@ class Connection : public node::EventEmitter {
         int len;
         bson_little_endian32(&len, &head.len);
 
-        mongo_reply *out = reinterpret_cast<mongo_reply*>(new char[len]);
+        char *outbuf = new char[len];
+        mongo_reply *out = reinterpret_cast<mongo_reply*>(outbuf);
 
         out->head.len = len;
         bson_little_endian32(&out->head.id, &head.id);
@@ -212,7 +213,7 @@ class Connection : public node::EventEmitter {
         cursor = static_cast<mongo_cursor*>(bson_malloc(sizeof(mongo_cursor)));
 
         ParseReply(out);
-        delete out;
+        delete [] outbuf;
     }
 
     void
@@ -285,7 +286,10 @@ class Connection : public node::EventEmitter {
         } else {
             printf("advancing cursor by one object\n");
             bson_init(&cursor->current, bson_addr, 0);
+
+            return true;
         }
+        return false;
     }
 
     bool ConsumeInput(void) {
@@ -382,6 +386,9 @@ class Connection : public node::EventEmitter {
         bson query_fields_bson = encodeObject(query_fields);
 
         connection->Find(ns, &query_bson, &query_fields_bson);
+
+        bson_destroy(&query_bson);
+        bson_destroy(&query_fields_bson);
         return Undefined();
     }
 

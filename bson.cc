@@ -71,11 +71,13 @@ bson encodeObject(const Local<Value> element) {
         else if (prop_val->IsObject()) {
             bson bson(encodeObject(prop_val));
             bson_append_bson(&bb, pname, &bson);
+            bson_destroy(&bson);
         }
     }
 
     bson bson;
     bson_from_buffer(&bson, &bb);
+
     return bson;
 }
 
