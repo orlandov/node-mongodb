@@ -13,7 +13,7 @@ extern "C" {
     #include <mongo.h>
     #include <platform_hacks.h>
 }
-
+#include "bson.h"
 #define NS "test.widgets"
 
 const int chunk_size = 4094;
@@ -161,38 +161,27 @@ class Connection : public node::EventEmitter {
     bool
     SendGetMore(void) {
         HandleScope scope;
-        if (cursor->mm && cursor->mm->fields.cursorID){
-            char* data;
-            int sl = strlen(cursor->ns)+1;
-            mongo_message * mm = mongo_message_create(16 /*header*/
-                                                     +4 /*ZERO*/
-                                                     +sl
-                                                     +4 /*numToReturn*/
-                                                     +8 /*cursorID*/
-                                                     , 0, 0, mongo_op_get_more);
-            data = &mm->data;
-            data = mongo_data_append32(data, &zero);
-            data = mongo_data_append(data, cursor->ns, sl);
-            data = mongo_data_append32(data, &zero);
-            data = mongo_data_append64(data, &cursor->mm->fields.cursorID);
-            mongo_message_send(conn, mm);
-            state = STATE_READ_HEAD;
 
-            StartReadWatcher();
-            StopWriteWatcher();
+        char* data;
+        int sl = strlen(cursor->ns)+1;
+        mongo_message * mm = mongo_message_create(16 /*header*/
+                                                 +4 /*ZERO*/
+                                                 +sl
+                                                 +4 /*numToReturn*/
+                                                 +8 /*cursorID*/
+                                                 , 0, 0, mongo_op_get_more);
+        data = &mm->data;
+        data = mongo_data_append32(data, &zero);
+        data = mongo_data_append(data, cursor->ns, sl);
+        data = mongo_data_append32(data, &zero);
+        data = mongo_data_append64(data, &cursor->mm->fields.cursorID);
+        mongo_message_send(conn, mm);
+        state = STATE_READ_HEAD;
 
-            return true;
+        StartReadWatcher();
+        StopWriteWatcher();
 
-        } else {
-
-            delete [] cursor->ns;
-            free(cursor);
-            Emit("result", 1, reinterpret_cast<Handle<Value> *>(&results));
-            results.Dispose();
-            results.Clear();
-            get_more = false;
-            return false;
-        }
+        return true;
     }
 
     void
@@ -245,11 +234,24 @@ class Connection : public node::EventEmitter {
             results->Set(Integer::New(i), val);
         }
 
+        // if this is the last cursor
+        if (! fields.cursorID) {
+            EmitResults();
+        }
+
         StopReadWatcher();
         StartWriteWatcher();
         printf("end of readresponse\n");
 
         return;
+    }
+
+    bool EmitResults() {
+        delete [] cursor->ns;
+        free(cursor);
+        Emit("result", 1, reinterpret_cast<Handle<Value> *>(&results));
+        results.Dispose();
+        results.Clear();
     }
 
     bool AdvanceCursor(void) {
@@ -323,11 +325,9 @@ class Connection : public node::EventEmitter {
         }
     }
 
-    bool Find(void) {
-        bson query;
-        bson_empty(&query);
-
-        node_mongo_find(conn, "test.widgets", &query, 0, 0, 0, 0);
+    bool Find(Local<String> ns, bson *query) {
+        String::Utf8Value ns_str(ns);
+        node_mongo_find(conn, *ns_str, query, 0, 0, 0, 0);
         StartReadWatcher();
     }
 
@@ -373,7 +373,10 @@ class Connection : public node::EventEmitter {
         Connection *connection = ObjectWrap::Unwrap<Connection>(args.This());
         HandleScope scope;
 
-        connection->Find();
+        Local<String> ns(args[0]->ToString());
+        bson query = encodeObject(args[1]->ToObject());
+
+        connection->Find(ns, &query);
     }
 
     void Event(int revents) {

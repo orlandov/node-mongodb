@@ -48,4 +48,5 @@ c.addListener("result", function (result) {
     sys.puts("\n");
 });
 
-c.find();
+var query = { "foo": { $gt: 100 } };
+c.find("test.widgets", query);

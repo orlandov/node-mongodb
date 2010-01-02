@@ -119,7 +119,7 @@ decodeObjectStr(const char *buf) {
                 break;
 
             case bson_oid: {
-                    char hex_oid[25] = { 0 };
+                    char hex_oid[25];
                     bson_oid_t *oid = bson_iterator_oid(&it);
                     bson_oid_to_string(oid, hex_oid);
                     printf("oid %s was %s\n", key, hex_oid);
