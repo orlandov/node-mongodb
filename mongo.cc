@@ -235,8 +235,9 @@ class Connection : public node::EventEmitter {
         }
 
         // if this is the last cursor
-        if (! fields.cursorID) {
+        if (!cursor->mm || ! fields.cursorID) {
             EmitResults();
+            get_more = false;
         }
 
         StopReadWatcher();
@@ -325,9 +326,9 @@ class Connection : public node::EventEmitter {
         }
     }
 
-    bool Find(Local<String> ns, bson *query) {
+    bool Find(Local<String> ns, bson *query, bson *query_fields) {
         String::Utf8Value ns_str(ns);
-        node_mongo_find(conn, *ns_str, query, 0, 0, 0, 0);
+        node_mongo_find(conn, *ns_str, query, query_fields, 0, 0, 0);
         StartReadWatcher();
     }
 
@@ -370,13 +371,18 @@ class Connection : public node::EventEmitter {
 
     static Handle<Value>
     Find (const Arguments &args) {
-        Connection *connection = ObjectWrap::Unwrap<Connection>(args.This());
         HandleScope scope;
+        Connection *connection = ObjectWrap::Unwrap<Connection>(args.This());
+
+        Local<Object> query(args[1]->ToObject());
+        Local<Object> query_fields(args[2]->ToObject());
 
         Local<String> ns(args[0]->ToString());
-        bson query = encodeObject(args[1]->ToObject());
+        bson query_bson = encodeObject(query);
+        bson query_fields_bson = encodeObject(query_fields);
 
-        connection->Find(ns, &query);
+        connection->Find(ns, &query_bson, &query_fields_bson);
+        return Undefined();
     }
 
     void Event(int revents) {

@@ -49,4 +49,5 @@ c.addListener("result", function (result) {
 });
 
 var query = { "foo": { $gt: 100 } };
-c.find("test.widgets", query);
+var fields = {};
+c.find("test.widgets", query, { foo: true });
