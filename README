@@ -12,6 +12,29 @@ If that warning didn't scare you off then to build this package simply:
 - Make sure you have git installed.
 - ./update-mongo-c-driver.sh
 - node-waf configure build
-- node test_bson.js
+- node test_mongo.js
 
-Patches, beer, flames, adoration welcome!
+Example Time
+------------
+
+    sys = require("sys");
+    mongodb = require("./mongodb");
+
+    var mongo = new mongodb.MongoDB();
+
+    mongo.addListener("connection", function () {
+        var widgets = mongo.getCollection('widgets');
+
+        widgets.find({}, {}).addCallback(function (result) {
+            sys.puts(JSON.stringify(result));
+        });
+        widgets.find({}, { "hello": true }).addCallback(function (result) {
+            sys.puts(JSON.stringify(result));
+        });
+    });
+
+    mongo.connect({
+        hostname: '127.0.0.1',
+        port: 27017,
+        db: 'test'
+    });

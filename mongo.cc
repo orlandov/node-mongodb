@@ -80,7 +80,7 @@ class Connection : public node::EventEmitter {
         ev_io_stop(EV_DEFAULT_ &read_watcher);
     }
 
-    void StartWriteWatcher() {    
+    void StartWriteWatcher() {
         printf("*** Starting write watcher\n");
         ev_io_start(EV_DEFAULT_ &write_watcher);
     }
@@ -107,6 +107,7 @@ class Connection : public node::EventEmitter {
         int sockflags = fcntl(conn->sock, F_GETFL, 0);
         fcntl(conn->sock, F_SETFL, sockflags | O_NONBLOCK);
 
+        Emit("connection", 0, NULL);
         ev_io_set(&read_watcher,  conn->sock, EV_READ);
         ev_io_set(&write_watcher, conn->sock, EV_WRITE);
 
@@ -231,6 +232,9 @@ class Connection : public node::EventEmitter {
         cursor->conn = conn;
         cursor->current.data = NULL;
 
+        printf("checking results length\n");
+        results->Length();
+        printf("iterating over elements\n");
         for (int i = results->Length(); AdvanceCursor(); i++){
             Local<Value> val = decodeObjectStr(cursor->current.data);
             results->Set(Integer::New(i), val);
@@ -255,6 +259,8 @@ class Connection : public node::EventEmitter {
         Emit("result", 1, reinterpret_cast<Handle<Value> *>(&results));
         results.Dispose();
         results.Clear();
+        Handle<Array> r = Array::New();
+        results = Persistent<Array>::New(r);
     }
 
     bool AdvanceCursor(void) {
@@ -369,7 +375,7 @@ class Connection : public node::EventEmitter {
         Connection *connection = ObjectWrap::Unwrap<Connection>(args.This());
         HandleScope scope;
         String::Utf8Value host(args[0]->ToString());
-        bool r = connection->Connect(*host, args[1]->Int32Value());
+        connection->Connect(*host, args[1]->Int32Value());
 
         return Undefined();
     }
@@ -399,6 +405,9 @@ class Connection : public node::EventEmitter {
             StopWriteWatcher();
             if (get_more) {
                 SendGetMore();
+            }
+            else {
+                Emit("ready", 0, NULL);
             }
         }
         if (revents & EV_READ) {
