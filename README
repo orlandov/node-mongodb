@@ -1,21 +1,10 @@
-Warning! Warning! Warning! Warning! Warning! Warning!  Warning! Warning!
+NAME
+====
 
-This package is EXPERIMENTAL, with emphasis on MENTAL. I am working on this in
-my spare time to learn the node.js, v8 and mongo API's. I am mixing C and C++.
-I am probably doing it totally wrong. It will probably leak memory like sieve.
-In fact, why are you reading this, run away before it's too late!
+node-mongodb - An asynchronous Node.js interface to MongoDB
 
-Warning! Warning! Warning! Warning! Warning! Warning!  Warning! Warning!
-
-If that warning didn't scare you off then to build this package simply:
-
-- Make sure you have git installed.
-- ./update-mongo-c-driver.sh
-- node-waf configure build
-- node test_mongo.js
-
-Example Time
-------------
+SYNOPSYS
+========
 
     sys = require("sys");
     mongodb = require("./mongodb");
@@ -38,3 +27,51 @@ Example Time
         port: 27017,
         db: 'test'
     });
+
+DESCRIPTION
+===========
+
+This is an attempt at MongoDB bindings for Node.JS. The important thing here
+is to ensure that we never block on io. The MongoDB C drivers are used to
+interface with the database.
+
+Installation
+------------
+
+- Make sure you have git installed.
+- ./update-mongo-c-driver.sh
+- node-waf configure build
+- node test_mongo.js
+
+BUGS
+====
+
+This package is EXPERIMENTAL, with emphasis on MENTAL. I am working on this in
+my spare time to learn the node.js, v8 and mongo API's. I am mixing C and C++.
+I am probably doing it totally wrong.
+
+The error handling in this extension needs to be improved substantially. Be
+warned.
+
+I would appreciate any and all patches, suggestions and constructive
+criticisms.
+
+ACKNOWLEDGEMENTS
+================
+
+- ryah's Node.JS postgres driver was the foundation for this extension
+- MongoDB C drivers
+- #node.js and #mongodb on freenode for answering my questions
+
+SEE ALSO
+========
+
+- http://github.com/ry/node_postgres
+- http://github.com/mongodb/mongo-c-driver
+
+AUTHOR
+======
+
+Orlando Vazquez <ovazquez/gmail/com>
+
+
