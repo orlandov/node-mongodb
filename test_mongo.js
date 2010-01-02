@@ -32,22 +32,20 @@ posts.count();
 process.mixin(GLOBAL, require('mjsunit'));
 
 sys = require("sys");
-Connection = require("./mongo").Connection
+mongodb = require("./mongodb");
 
-c = new Connection();
+var mongo = new mongodb.MongoDB();
 
-// XXX TODO this should trigger an event
-c.connect("127.0.0.1", 27017);
-
-c.addListener("connect", function () {
-    sys.puts("connect is never emitted, but it should be!");        
+mongo.connect({
+    hostname: '127.0.0.1',
+    port: 27017,
+    db: 'test'
 });
 
-c.addListener("result", function (result) {
-    sys.puts("result was " +JSON.stringify(result));
-    sys.puts("\n");
+var test = mongo.getCollection('widgets');
+
+test.find({}, {}).addCallback(function (result) {
+    sys.puts(JSON.stringify(result));        
 });
 
-var query = { "foo": { $gt: 100 } };
-var fields = {};
-c.find("test.widgets", query, { foo: true });
+mongo.dispatch();

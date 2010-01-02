@@ -17,8 +17,9 @@ extern "C" {
 #define NS "test.widgets"
 
 const int chunk_size = 4094;
+
 using namespace v8;
-extern Local<Value> decodeObjectStr(const char *);
+
 enum ReadState {
     STATE_READ_HEAD,
     STATE_READ_FIELDS,
