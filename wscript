@@ -28,6 +28,7 @@ def build(bld):
 #   bson.uselib = "BSON MONGO"
 
   mongo = bld.new_task_gen('cxx', 'shlib', 'node_addon')
+  mongo.cxxflags = "-g"
   mongo.target = 'mongo'
   mongo.source = "mongo.cc bson.cc"
   mongo.uselib = "MONGO BSON"

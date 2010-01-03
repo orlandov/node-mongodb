@@ -17,15 +17,14 @@ extern "C" {
     #include <platform_hacks.h>
 }
 #include "bson.h"
-#define NS "test.widgets"
 
-const int chunk_size = 4094;
+const int chunk_size(4094);
+const int headerSize(sizeof(mongo_header) + sizeof(mongo_reply_fields));
 
 using namespace v8;
 
 enum ReadState {
     STATE_READ_HEAD,
-    STATE_READ_FIELDS,
     STATE_READ_MESSAGE,
     STATE_PARSE_MESSAGE,
 };
@@ -126,19 +125,17 @@ class Connection : public node::EventEmitter {
 
     mongo_conn_return
     MongoCreateSocket() {
-        /* setup */
         conn->sock = 0;
         conn->connected = 0;
 
-        memset( conn->sa.sin_zero , 0 , sizeof(conn->sa.sin_zero) );
+        memset(conn->sa.sin_zero, 0, sizeof(conn->sa.sin_zero));
         conn->sa.sin_family = AF_INET;
         conn->sa.sin_port = htons(conn->left_opts->port);
-        conn->sa.sin_addr.s_addr = inet_addr( conn->left_opts->host );
+        conn->sa.sin_addr.s_addr = inet_addr(conn->left_opts->host);
         conn->addressSize = sizeof(conn->sa);
 
-        /* connect */
         conn->sock = socket( AF_INET, SOCK_STREAM, 0 );
-        if ( conn->sock <= 0 ){
+        if (conn->sock <= 0){
             return mongo_conn_no_socket;
         }
 
@@ -148,8 +145,6 @@ class Connection : public node::EventEmitter {
         assert(res < 0);
         assert(errno == EINPROGRESS);
 
-        printf("res < 0: %d, errno == EINPROGRESS: %d\n",
-                res < 0, errno == EINPROGRESS);
 //         if (  ){
 //             return mongo_conn_fail;
 //         }
@@ -159,7 +154,6 @@ class Connection : public node::EventEmitter {
     }
 
     void Connected() {
-        /* nagle */
         StopConnectWatcher();
         setsockopt( conn->sock, IPPROTO_TCP, TCP_NODELAY, (char *) &one, sizeof(one) );
 
@@ -194,19 +188,10 @@ class Connection : public node::EventEmitter {
     void
     CheckBufferContents(void) {
         if (state == STATE_READ_HEAD) {
-            if (buflen > sizeof(mongo_header)) {
+            if (buflen > headerSize) {
                 printf("got enough for the head\n");
-                memcpy(&head, bufptr, sizeof(mongo_header));
-                printf("memcpy'd\n");
-                bufptr += sizeof(mongo_header);
-                state = STATE_READ_FIELDS;
-            }
-        }
-        if (state == STATE_READ_FIELDS) {
-            if (buflen > sizeof(mongo_header) + sizeof(mongo_reply_fields)) {
-                printf("got enough for the fields\n");
-                memcpy(&fields, bufptr, sizeof(mongo_reply_fields));
-                bufptr += sizeof(mongo_reply_fields);
+                memcpy(&head, bufptr, headerSize);
+                bufptr += headerSize;
                 state = STATE_READ_MESSAGE;
             }
         }
@@ -233,8 +218,7 @@ class Connection : public node::EventEmitter {
         }
     }
 
-    bool
-    SendGetMore(void) {
+    bool RequestMore() {
         HandleScope scope;
 
         char* data;
@@ -249,7 +233,7 @@ class Connection : public node::EventEmitter {
         data = mongo_data_append32(data, &zero);
         data = mongo_data_append(data, cursor->ns, sl);
         data = mongo_data_append32(data, &zero);
-        data = mongo_data_append64(data, &cursor->mm->fields.cursorID);
+        data = mongo_data_append64(data, &fields.cursorID);
         mongo_message_send(conn, mm);
         state = STATE_READ_HEAD;
 
@@ -267,8 +251,8 @@ class Connection : public node::EventEmitter {
         int len;
         bson_little_endian32(&len, &head.len);
 
-        char *outbuf = new char[len];
-        mongo_reply *out = reinterpret_cast<mongo_reply*>(outbuf);
+        char replybuf[len];
+        mongo_reply *out = reinterpret_cast<mongo_reply*>(replybuf);
 
         out->head.len = len;
         bson_little_endian32(&out->head.id, &head.id);
@@ -285,24 +269,17 @@ class Connection : public node::EventEmitter {
 
         memcpy(&out->objs, bufptr, len-sizeof(head)-sizeof(fields));
 
-        cursor = static_cast<mongo_cursor*>(bson_malloc(sizeof(mongo_cursor)));
-
         ParseReply(out);
-        delete [] outbuf;
     }
 
     void
     ParseReply(mongo_reply *out) {
         HandleScope scope;
+
         printf("parsing reply\n");
 
         cursor->mm = out;
 
-        int sl = strlen(NS)+1;
-        cursor->ns = static_cast<char *>(new char[sl]);
-
-        memcpy(static_cast<void*>(const_cast<char*>(cursor->ns)), NS, sl);
-        cursor->conn = conn;
         cursor->current.data = NULL;
 
         printf("checking results length\n");
@@ -326,14 +303,24 @@ class Connection : public node::EventEmitter {
         return;
     }
 
-    bool EmitResults() {
-        delete [] cursor->ns;
+    bool FreeCursor() {
+        free((void*)cursor->ns);
         free(cursor);
+        cursor = NULL;
+    }
+
+    bool EmitResults() {
+        FreeCursor();
+
         Emit("result", 1, reinterpret_cast<Handle<Value> *>(&results));
+
+        // XXX better way to do this?
         results.Dispose();
         results.Clear();
         Handle<Array> r = Array::New();
         results = Persistent<Array>::New(r);
+
+        return false;
     }
 
     bool AdvanceCursor(void) {
@@ -355,6 +342,7 @@ class Connection : public node::EventEmitter {
 
             if (! fields.cursorID) {
                 printf("end of the line, not going to get more\n");
+                get_more = false;
             }
             else {
                 printf("cursor id had a valid value (%llu) so setting the get_more flag\n", fields.cursorID);
@@ -412,6 +400,14 @@ class Connection : public node::EventEmitter {
 
     bool Find(Local<String> ns, bson *query, bson *query_fields) {
         String::Utf8Value ns_str(ns);
+
+        cursor = static_cast<mongo_cursor*>(bson_malloc(sizeof(mongo_cursor)));
+        int sl = strlen(*ns_str)+1;
+        cursor->ns = static_cast<char*>(bson_malloc(sl));
+
+        memcpy(static_cast<void*>(const_cast<char*>(cursor->ns)), *ns_str, sl);
+        cursor->conn = conn;
+
         node_mongo_find(conn, *ns_str, query, query_fields, 0, 0, 0);
         StartReadWatcher();
     }
@@ -432,6 +428,7 @@ class Connection : public node::EventEmitter {
         Handle<Array> r = Array::New();
         results = Persistent<Array>::New(r);
 
+        cursor = false;
         get_more = false;
         buflen = 0;
         buf = bufptr = NULL;
@@ -480,7 +477,7 @@ class Connection : public node::EventEmitter {
             printf("!!! got a write event\n");
             StopWriteWatcher();
             if (get_more) {
-                SendGetMore();
+                RequestMore();
             }
             else {
                 Emit("ready", 0, NULL);
