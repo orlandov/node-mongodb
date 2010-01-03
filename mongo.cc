@@ -159,7 +159,7 @@ class Connection : public node::EventEmitter {
 
         conn->connected = 1;
 
-        Emit("connection", 0, NULL);
+        Emit(String::New("connection"), 0, NULL);
     }
 
     bool
@@ -180,7 +180,7 @@ class Connection : public node::EventEmitter {
 
         StartWriteWatcher();
 
-        Attach();
+        //Attach();
 
         return true;
     }
@@ -188,7 +188,7 @@ class Connection : public node::EventEmitter {
     void
     CheckBufferContents(void) {
         if (state == STATE_READ_HEAD) {
-            if (buflen > headerSize) {
+            if (buflen >= headerSize) {
                 printf("got enough for the head\n");
                 memcpy(&head, bufptr, headerSize);
                 bufptr += headerSize;
@@ -312,7 +312,7 @@ class Connection : public node::EventEmitter {
     bool EmitResults() {
         FreeCursor();
 
-        Emit("result", 1, reinterpret_cast<Handle<Value> *>(&results));
+        Emit(String::New("result"), 1, reinterpret_cast<Handle<Value> *>(&results));
 
         // XXX better way to do this?
         results.Dispose();
@@ -457,12 +457,31 @@ class Connection : public node::EventEmitter {
         HandleScope scope;
         Connection *connection = ObjectWrap::Unwrap<Connection>(args.This());
 
-        Local<Object> query(args[1]->ToObject());
-        Local<Object> query_fields(args[2]->ToObject());
-
+        // TODO assert ns != undefined (args.Length > 0)
         Local<String> ns(args[0]->ToString());
-        bson query_bson = encodeObject(query);
-        bson query_fields_bson = encodeObject(query_fields);
+        bson query_bson;
+        bson query_fields_bson;
+
+        printf("hihi\n");
+        if (args.Length() > 1 && !args[1]->IsUndefined()) {
+            printf("got custom query\n");
+            Local<Object> query(args[1]->ToObject());
+            query_bson = encodeObject(query);
+        }
+        else {
+            printf("got empty query\n");
+            bson_empty(&query_bson);
+        }
+
+        if (args.Length() > 2 && !args[2]->IsUndefined()) {
+            printf("got custom query fields\n");
+            Local<Object> query_fields(args[2]->ToObject());
+            query_fields_bson = encodeObject(query_fields);
+        }
+        else {
+            printf("got empty query fields\n");
+            bson_empty(&query_fields_bson);
+        }
 
         connection->Find(ns, &query_bson, &query_fields_bson);
 
@@ -480,7 +499,7 @@ class Connection : public node::EventEmitter {
                 RequestMore();
             }
             else {
-                Emit("ready", 0, NULL);
+                Emit(String::New("ready"), 0, NULL);
             }
         }
         if (revents & EV_READ) {
@@ -531,6 +550,7 @@ class Connection : public node::EventEmitter {
 
 extern "C" void
 init (Handle<Object> target) {
+    printf("headersize was %d\n", headerSize);
     HandleScope scope;
     Connection::Initialize(target);
 }

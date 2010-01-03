@@ -9,16 +9,19 @@ var mongo = new mongodb.MongoDB();
 
 mongo.addListener("connection", function () {
     var widgets = mongo.getCollection('widgets');
-    var howMany = 10;
 
-    while (howMany--) {
-        widgets.find({}, {}).addCallback(function (result) {
-            sys.puts(JSON.stringify(result));
-        });
-        widgets.find({}, { "hello": true }).addCallback(function (result) {
-            sys.puts(JSON.stringify(result));
-        });
-    }
+    widgets.find().addCallback(function (result) {
+        sys.puts(JSON.stringify(result));
+    });
+
+    widgets.find({}, { "hello": true }).addCallback(function (result) {
+        sys.puts(JSON.stringify(result));
+    });
+
+    // must implement skip/limit before this will work
+    widgets.count().addCallback(function(result) {
+        sys.puts("count result was " + JSON.stringify(result));
+    });
 });
 
 mongo.connect({
