@@ -11,23 +11,41 @@ function Collection(mongo, db, name) {
 
 Collection.prototype.find = function(query, fields) {
     var promise = new process.Promise;
-
     this.mongo.addQuery(promise, this.ns, query, fields);
-
     return promise;
 }
 
-Collection.prototype.count = function(query) {
+Collection.prototype.find_one = function(query, fields, ns) {
     var promise = new process.Promise;
+    var user_promise = new process.Promise;
 
-    ns = "test.$cmd";
+    this.mongo.addQuery(promise, ns || this.ns, query, fields, 1);
+
+    promise.addCallback(function (results) {
+        // XXX what if result.Length < 1
+        sys.puts("find_one callback " + JSON.stringify(results[0]));
+        user_promise.emitSuccess(results[0]);
+    });
+    return user_promise;
+}
+
+Collection.prototype.count = function(query) {
+    ns = this.db + ".$cmd";
     var cmd = {
         "count": this.name,
         "query": query
     }
-    this.mongo.addQuery(promise, ns, cmd);
 
-    return promise;
+    user_promise = new process.Promise;
+    promise = this.find_one(cmd, {}, ns);
+    promise.addCallback(function (result) {
+        // check $err
+        sys.puts("in count callback" + JSON.stringify(result));
+        sys.puts(JSON.stringify(result));
+        user_promise.emitSuccess(result.n);
+    });
+
+    return user_promise;
 }
 
 function MongoDB() {
@@ -63,10 +81,12 @@ MongoDB.prototype.connect = function(args) {
     this.connection.connect(this.hostname, this.port);
 }
 
-MongoDB.prototype.addQuery = function(promise, ns, query, fields ) {
+MongoDB.prototype.addQuery = function(promise, ns, query, fields, limit, skip ) {
     var q = [ promise, ns ];
     if (query) q.push(query);
     if (fields) q.push(fields);
+    if (limit) q.push(limit);
+    if (skip) q.push(skip);
     this.queries.push(q);
 }
 

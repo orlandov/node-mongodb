@@ -19,8 +19,8 @@ mongo.addListener("connection", function () {
     });
 
     // must implement skip/limit before this will work
-    widgets.count().addCallback(function(result) {
-        sys.puts("count result was " + JSON.stringify(result));
+    widgets.count().addCallback(function(count) {
+        sys.puts("count result was " + count);
     });
 });
 

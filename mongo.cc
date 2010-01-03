@@ -29,6 +29,10 @@ enum ReadState {
     STATE_PARSE_MESSAGE,
 };
 
+inline bool ARG_DEFINED(const Arguments &args, const int n) {
+    return args.Length() > n && !args[n]->IsUndefined();
+}
+
 void setNonBlocking(int sock) {
     int sockflags = fcntl(sock, F_GETFL, 0);
     fcntl(sock, F_SETFL, sockflags | O_NONBLOCK);
@@ -398,7 +402,7 @@ class Connection : public node::EventEmitter {
         }
     }
 
-    bool Find(Local<String> ns, bson *query, bson *query_fields) {
+    bool Find(Local<String> ns, bson *query=0, bson *query_fields=0, int nToReturn=0, int nToSkip=0) {
         String::Utf8Value ns_str(ns);
 
         cursor = static_cast<mongo_cursor*>(bson_malloc(sizeof(mongo_cursor)));
@@ -408,7 +412,7 @@ class Connection : public node::EventEmitter {
         memcpy(static_cast<void*>(const_cast<char*>(cursor->ns)), *ns_str, sl);
         cursor->conn = conn;
 
-        node_mongo_find(conn, *ns_str, query, query_fields, 0, 0, 0);
+        node_mongo_find(conn, *ns_str, query, query_fields, nToReturn, nToSkip, 0);
         StartReadWatcher();
     }
 
@@ -461,6 +465,7 @@ class Connection : public node::EventEmitter {
         Local<String> ns(args[0]->ToString());
         bson query_bson;
         bson query_fields_bson;
+        int nToReturn(0), nToSkip(0);
 
         printf("hihi\n");
         if (args.Length() > 1 && !args[1]->IsUndefined()) {
@@ -483,7 +488,17 @@ class Connection : public node::EventEmitter {
             bson_empty(&query_fields_bson);
         }
 
-        connection->Find(ns, &query_bson, &query_fields_bson);
+        if (args.Length() > 3 && !args[3]->IsUndefined()) {
+            nToReturn = args[3]->Int32Value();
+            printf("custom limit %d\n", nToReturn);
+        }
+
+        if (args.Length() > 4 && !args[4]->IsUndefined()) {
+            nToSkip = args[4]->Int32Value();
+            printf("custom skip %d\n", nToSkip);
+        }
+
+        connection->Find(ns, &query_bson, &query_fields_bson, nToReturn, nToSkip);
 
         bson_destroy(&query_bson);
         bson_destroy(&query_fields_bson);
