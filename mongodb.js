@@ -37,7 +37,6 @@ Collection.prototype.find_one = function(query, fields, ns) {
 
     promise.addCallback(function (results) {
         // XXX what if result.Length < 1
-        sys.puts("find_one callback " + JSON.stringify(results[0]));
         user_promise.emitSuccess(results[0]);
     });
     return user_promise;
@@ -54,8 +53,6 @@ Collection.prototype.count = function(query) {
     promise = this.find_one(cmd, {}, ns);
     promise.addCallback(function (result) {
         // check $err
-        sys.puts("in count callback" + JSON.stringify(result));
-        sys.puts(JSON.stringify(result));
         user_promise.emitSuccess(result.n);
     });
 

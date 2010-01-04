@@ -18,6 +18,11 @@ extern "C" {
 }
 #include "bson.h"
 
+#define DEBUG_LEVEL 1
+
+#define DEBUGMODE 0
+#define pdebug(...) do{if(DEBUGMODE)printf(__VA_ARGS__);}while(0)
+
 const int chunk_size(4094);
 const int headerSize(sizeof(mongo_header) + sizeof(mongo_reply_fields));
 
@@ -85,32 +90,32 @@ class Connection : public node::EventEmitter {
     }
 
     void StartReadWatcher() {
-        printf("*** Starting read watcher\n");
+        pdebug("*** Starting read watcher\n");
         ev_io_start(EV_DEFAULT_ &read_watcher);
     }
 
     void StopReadWatcher() {
-        printf("*** Stopping read watcher\n");
+        pdebug("*** Stopping read watcher\n");
         ev_io_stop(EV_DEFAULT_ &read_watcher);
     }
 
     void StartWriteWatcher() {
-        printf("*** Starting write watcher\n");
+        pdebug("*** Starting write watcher\n");
         ev_io_start(EV_DEFAULT_ &write_watcher);
     }
 
     void StopWriteWatcher() {
-        printf("*** Stopping write watcher\n");
+        pdebug("*** Stopping write watcher\n");
         ev_io_stop(EV_DEFAULT_ &write_watcher);
     }
 
     void StartConnectWatcher() {
-        printf("*** Starting connect watcher\n");
+        pdebug("*** Starting connect watcher\n");
         ev_io_start(EV_DEFAULT_ &connect_watcher);
     }
 
     void StopConnectWatcher() {
-        printf("*** Stopping connect watcher\n");
+        pdebug("*** Stopping connect watcher\n");
         ev_io_stop(EV_DEFAULT_ &connect_watcher);
     }
 
@@ -176,7 +181,7 @@ class Connection : public node::EventEmitter {
         opts.host[strlen(host)] = '\0';
         opts.port = port;
 
-        printf("connecting! %s %d\n", host, port);
+        pdebug("connecting! %s %d\n", host, port);
 
         CreateConnection(&opts);
 
@@ -196,19 +201,19 @@ class Connection : public node::EventEmitter {
     CheckBufferContents(void) {
         if (state == STATE_READ_HEAD) {
             if (buflen >= headerSize) {
-                printf("got enough for the head\n");
+                pdebug("got enough for the head\n");
                 memcpy(&head, bufptr, headerSize);
                 bufptr += headerSize;
                 state = STATE_READ_MESSAGE;
             }
         }
         if (state == STATE_READ_MESSAGE) {
-            printf("in read message\n");
+            pdebug("in read message\n");
             int len;
             bson_little_endian32(&len, &head.len);
 
             if (len-buflen == 0) {
-                printf("its at zero!\n");
+                pdebug("its at zero!\n");
                 state = STATE_PARSE_MESSAGE;
             }
         }
@@ -221,7 +226,7 @@ class Connection : public node::EventEmitter {
             state = STATE_READ_HEAD;
             StopReadWatcher();
             StartWriteWatcher();
-            printf("listening for input again\n");
+            pdebug("listening for input again\n");
         }
     }
 
@@ -253,7 +258,7 @@ class Connection : public node::EventEmitter {
     void
     ParseMessage(void) {
         HandleScope scope;
-        printf("in parse message\n");
+        pdebug("in parse message\n");
 
         int len;
         bson_little_endian32(&len, &head.len);
@@ -271,8 +276,8 @@ class Connection : public node::EventEmitter {
         bson_little_endian32(&out->fields.start, &fields.start);
         bson_little_endian32(&out->fields.num, &fields.num);
 
-        printf("num = %d start = %d\n", fields.num, fields.start);
-        printf("num = %d start = %d\n", fields.num, fields.start);
+        pdebug("num = %d start = %d\n", fields.num, fields.start);
+        pdebug("num = %d start = %d\n", fields.num, fields.start);
 
         memcpy(&out->objs, bufptr, len-sizeof(head)-sizeof(fields));
 
@@ -283,15 +288,15 @@ class Connection : public node::EventEmitter {
     ParseReply(mongo_reply *out) {
         HandleScope scope;
 
-        printf("parsing reply\n");
+        pdebug("parsing reply\n");
 
         cursor->mm = out;
 
         cursor->current.data = NULL;
 
-        printf("checking results length\n");
+        pdebug("checking results length\n");
         results->Length();
-        printf("iterating over elements\n");
+        pdebug("iterating over elements\n");
         for (int i = results->Length(); AdvanceCursor(); i++){
             Local<Value> val = decodeObjectStr(cursor->current.data);
             results->Set(Integer::New(i), val);
@@ -305,7 +310,7 @@ class Connection : public node::EventEmitter {
 
         StopReadWatcher();
         StartWriteWatcher();
-        printf("end of readresponse\n");
+        pdebug("end of readresponse\n");
 
         return;
     }
@@ -345,21 +350,21 @@ class Connection : public node::EventEmitter {
 
         bson_addr = cursor->current.data + bson_size(&cursor->current);
         if (bson_addr >= ((char*)cursor->mm + cursor->mm->head.len)){
-            printf("i should be getting more here\n");
+            pdebug("i should be getting more here\n");
 
             if (! fields.cursorID) {
-                printf("end of the line, not going to get more\n");
+                pdebug("end of the line, not going to get more\n");
                 get_more = false;
             }
             else {
-                printf("cursor id had a valid value (%llu) so setting the get_more flag\n", fields.cursorID);
+                pdebug("cursor id had a valid value (%llu) so setting the get_more flag\n", fields.cursorID);
                 get_more = true;
             }
 
             // indicate that this is the last result
             return false;
         } else {
-            printf("advancing cursor by one object\n");
+            pdebug("advancing cursor by one object\n");
             bson_init(&cursor->current, bson_addr, 0);
 
             return true;
@@ -377,14 +382,14 @@ class Connection : public node::EventEmitter {
 
             // no more input to consume
             if (readbuflen == -1 && errno == EAGAIN) {
-                printf("len == -1 && errno == EAGAIN\n");
+                pdebug("len == -1 && errno == EAGAIN\n");
             }
             else if (readbuflen <= 0) {
-                printf("length error on read %d errno = %d\n", readbuflen, errno);
+                pdebug("length error on read %d errno = %d\n", readbuflen, errno);
             }
             else {
-                printf("buf is %d bytes\n", buflen);
-                printf("read %d bytes\n", readbuflen);
+                pdebug("buf is %d bytes\n", buflen);
+                pdebug("read %d bytes\n", readbuflen);
                 tmp = static_cast<char *>(new char[buflen+readbuflen]);
                 memset(tmp, 0, buflen+readbuflen);
 
@@ -393,13 +398,13 @@ class Connection : public node::EventEmitter {
                 }
                 memcpy(tmp+buflen, readbuf, readbuflen);
                 if (buf) {
-                    printf("deleting old buf\n");
+                    pdebug("deleting old buf\n");
                     delete [] buf;
                 }
                 buflen = buflen + readbuflen;
                 bufptr = tmp + (bufptr - buf);
                 buf = tmp;
-                printf("buf is %d bytes\n\n", buflen);
+                pdebug("buf is %d bytes\n\n", buflen);
                 break;
             }
         }
@@ -419,7 +424,7 @@ class Connection : public node::EventEmitter {
     }
 
     void Insert(const char *ns, bson obj) {
-        printf("doing a mongo insert\n");
+        pdebug("doing a mongo insert\n");
         mongo_insert(conn, ns, &obj);
     }
 
@@ -482,35 +487,35 @@ class Connection : public node::EventEmitter {
         bson query_fields_bson;
         int nToReturn(0), nToSkip(0);
 
-        printf("hihi\n");
+        pdebug("hihi\n");
         if (args.Length() > 1 && !args[1]->IsUndefined()) {
-            printf("got custom query\n");
+            pdebug("got custom query\n");
             Local<Object> query(args[1]->ToObject());
             query_bson = encodeObject(query);
         }
         else {
-            printf("got empty query\n");
+            pdebug("got empty query\n");
             bson_empty(&query_bson);
         }
 
         if (args.Length() > 2 && !args[2]->IsUndefined()) {
-            printf("got custom query fields\n");
+            pdebug("got custom query fields\n");
             Local<Object> query_fields(args[2]->ToObject());
             query_fields_bson = encodeObject(query_fields);
         }
         else {
-            printf("got empty query fields\n");
+            pdebug("got empty query fields\n");
             bson_empty(&query_fields_bson);
         }
 
         if (args.Length() > 3 && !args[3]->IsUndefined()) {
             nToReturn = args[3]->Int32Value();
-            printf("custom limit %d\n", nToReturn);
+            pdebug("custom limit %d\n", nToReturn);
         }
 
         if (args.Length() > 4 && !args[4]->IsUndefined()) {
             nToSkip = args[4]->Int32Value();
-            printf("custom skip %d\n", nToSkip);
+            pdebug("custom skip %d\n", nToSkip);
         }
 
         connection->Find(*ns, &query_bson, &query_fields_bson, nToReturn, nToSkip);
@@ -522,7 +527,7 @@ class Connection : public node::EventEmitter {
 
     static Handle<Value>
     Insert(const Arguments &args) {
-        printf("inserting here\n");
+        pdebug("inserting here\n");
         HandleScope scope;
         Connection *connection = ObjectWrap::Unwrap<Connection>(args.This());
         String::Utf8Value ns(args[0]->ToString());
@@ -551,7 +556,7 @@ class Connection : public node::EventEmitter {
         bson obj;
 
         if (args.Length() > 1 && !args[1]->IsUndefined()) {
-            printf("got custom query\n");
+            pdebug("got custom query\n");
             Local<Object> query(args[1]->ToObject());
             cond = encodeObject(query);
         }
@@ -560,7 +565,7 @@ class Connection : public node::EventEmitter {
         }
 
         if (args.Length() > 2 && !args[2]->IsUndefined()) {
-            printf("got custom query\n");
+            pdebug("got custom query\n");
             Local<Object> query(args[2]->ToObject());
             obj = encodeObject(query);
         }
@@ -584,7 +589,7 @@ class Connection : public node::EventEmitter {
 
         bson cond;
         if (args.Length() > 1 && !args[1]->IsUndefined()) {
-            printf("got custom query\n");
+            pdebug("got custom query\n");
             Local<Object> query(args[1]->ToObject());
             cond = encodeObject(query);
         }
@@ -600,7 +605,7 @@ class Connection : public node::EventEmitter {
 
     void Event(EV_P_ ev_io *w, int revents) {
         if (revents & EV_WRITE) {
-            printf("!!! got a write event\n");
+            pdebug("!!! got a write event\n");
             StopWriteWatcher();
             if (get_more) {
                 RequestMore();
@@ -610,12 +615,12 @@ class Connection : public node::EventEmitter {
             }
         }
         if (revents & EV_READ) {
-            printf("!!! got a read event\n");
+            pdebug("!!! got a read event\n");
             ConsumeInput();
             CheckBufferContents();
         }
         if (revents & EV_ERROR) {
-            printf("!!! got an error event\n");
+            pdebug("!!! got an error event\n");
         }
     }
 
@@ -623,7 +628,7 @@ class Connection : public node::EventEmitter {
 
     static void
     connect_event(EV_P_ ev_io *w, int revents) {
-        printf("got a connect event\n");
+        pdebug("got a connect event\n");
         Connection *connection = static_cast<Connection *>(w->data);
         connection->Connected();
     }
@@ -657,7 +662,7 @@ class Connection : public node::EventEmitter {
 
 extern "C" void
 init (Handle<Object> target) {
-    printf("headersize was %d\n", headerSize);
+    pdebug("headersize was %d\n", headerSize);
     HandleScope scope;
     Connection::Initialize(target);
 }

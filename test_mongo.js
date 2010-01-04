@@ -48,10 +48,11 @@ mongo.addListener("connection", function () {
             widgets.update({ shazbot: 0 }, { shazbot: 420 });
 
             widgets.find().addCallback(function (results) {
-                sys.puts(jjj(results));
                 for (var i = 0; i < results.length; i++) {
                     assertTrue(results[i].shazbot != 0);
                 }
+
+                sys.puts("Tests done!");
             });
         });
     });

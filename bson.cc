@@ -103,7 +103,6 @@ decodeObjectStr(const char *buf) {
     while (bson_iterator_next(&it)) {
         bson_type type = bson_iterator_type(&it);
         const char *key = bson_iterator_key(&it);
-        fprintf(stderr, "%d key was %s\n", type, key);
 
         switch (type) {
             case bson_string: {
@@ -124,7 +123,6 @@ decodeObjectStr(const char *buf) {
                     char hex_oid[25];
                     bson_oid_t *oid = bson_iterator_oid(&it);
                     bson_oid_to_string(oid, hex_oid);
-                    printf("oid %s was %s\n", key, hex_oid);
                     obj->Set(String::New(key), String::New(hex_oid));
                 }
                 break;
