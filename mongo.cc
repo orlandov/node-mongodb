@@ -18,8 +18,6 @@ extern "C" {
 }
 #include "bson.h"
 
-#define DEBUG_LEVEL 1
-
 #define DEBUGMODE 0
 #define pdebug(...) do{if(DEBUGMODE)printf(__VA_ARGS__);}while(0)
 
@@ -81,6 +79,7 @@ class Connection : public node::EventEmitter {
         t->InstanceTemplate()->SetInternalFieldCount(1);
 
         NODE_SET_PROTOTYPE_METHOD(t, "connect", Connect);
+        NODE_SET_PROTOTYPE_METHOD(t, "close", Close);
         NODE_SET_PROTOTYPE_METHOD(t, "find", Find);
         NODE_SET_PROTOTYPE_METHOD(t, "insert", Insert);
         NODE_SET_PROTOTYPE_METHOD(t, "update", Update);
@@ -135,8 +134,7 @@ class Connection : public node::EventEmitter {
         MongoCreateSocket();
     }
 
-    mongo_conn_return
-    MongoCreateSocket() {
+    mongo_conn_return MongoCreateSocket() {
         conn->sock = 0;
         conn->connected = 0;
 
@@ -152,14 +150,10 @@ class Connection : public node::EventEmitter {
         }
 
         setNonBlocking(conn->sock);
-        int res = connect( conn->sock, (struct sockaddr*) &conn->sa, conn->addressSize);
+        int res = connect(conn->sock, (struct sockaddr*) &conn->sa, conn->addressSize);
 
         assert(res < 0);
         assert(errno == EINPROGRESS);
-
-//         if (  ){
-//             return mongo_conn_fail;
-//         }
 
         ev_io_set(&connect_watcher,  conn->sock, EV_WRITE);
         StartConnectWatcher();
@@ -174,8 +168,9 @@ class Connection : public node::EventEmitter {
         Emit(String::New("connection"), 0, NULL);
     }
 
-    bool
-    Connect(const char *host, const int32_t port) {
+    void Connect(const char *host, const int32_t port) {
+        HandleScope scope;
+
         mongo_connection_options opts;
         memcpy(opts.host, host, strlen(host)+1);
         opts.host[strlen(host)] = '\0';
@@ -191,14 +186,20 @@ class Connection : public node::EventEmitter {
         ev_io_set(&write_watcher, conn->sock, EV_WRITE);
 
         StartWriteWatcher();
-
-        //Attach();
-
-        return true;
     }
 
-    void
-    CheckBufferContents(void) {
+    void Close() {
+        HandleScope scope;
+
+        StopWriteWatcher();
+        StopReadWatcher();
+
+        mongo_destroy(conn);
+
+        Emit(String::New("close"), 0, NULL);
+    }
+
+    void CheckBufferContents() {
         if (state == STATE_READ_HEAD) {
             if (buflen >= headerSize) {
                 pdebug("got enough for the head\n");
@@ -255,9 +256,9 @@ class Connection : public node::EventEmitter {
         return true;
     }
 
-    void
-    ParseMessage(void) {
+    void ParseMessage() {
         HandleScope scope;
+
         pdebug("in parse message\n");
 
         int len;
@@ -284,8 +285,7 @@ class Connection : public node::EventEmitter {
         ParseReply(out);
     }
 
-    void
-    ParseReply(mongo_reply *out) {
+    void ParseReply(mongo_reply *out) {
         HandleScope scope;
 
         pdebug("parsing reply\n");
@@ -311,17 +311,15 @@ class Connection : public node::EventEmitter {
         StopReadWatcher();
         StartWriteWatcher();
         pdebug("end of readresponse\n");
-
-        return;
     }
 
-    bool FreeCursor() {
+    void FreeCursor() {
         free((void*)cursor->ns);
         free(cursor);
         cursor = NULL;
     }
 
-    bool EmitResults() {
+    void EmitResults() {
         FreeCursor();
 
         Emit(String::New("result"), 1, reinterpret_cast<Handle<Value> *>(&results));
@@ -331,11 +329,9 @@ class Connection : public node::EventEmitter {
         results.Clear();
         Handle<Array> r = Array::New();
         results = Persistent<Array>::New(r);
-
-        return false;
     }
 
-    bool AdvanceCursor(void) {
+    bool AdvanceCursor() {
         char* bson_addr;
 
         /* no data */
@@ -372,19 +368,20 @@ class Connection : public node::EventEmitter {
         return false;
     }
 
-    bool ConsumeInput(void) {
+    bool ConsumeInput() {
         char *tmp;
         char readbuf[chunk_size];
         int32_t readbuflen;
 
-        while (true) {
+        for (;;) {
             readbuflen = read(conn->sock, readbuf, chunk_size);
 
-            // no more input to consume
             if (readbuflen == -1 && errno == EAGAIN) {
+                // no more input to consume
                 pdebug("len == -1 && errno == EAGAIN\n");
             }
             else if (readbuflen <= 0) {
+                // socket problem?
                 pdebug("length error on read %d errno = %d\n", readbuflen, errno);
             }
             else {
@@ -439,7 +436,7 @@ class Connection : public node::EventEmitter {
     protected:
 
     static Handle<Value>
-    New (const Arguments& args) {
+    New(const Arguments& args) {
         HandleScope scope;
 
         Connection *connection = new Connection();
@@ -447,7 +444,7 @@ class Connection : public node::EventEmitter {
         return args.This();
     }
 
-    Connection () : EventEmitter () {
+    Connection() : EventEmitter() {
         HandleScope scope;
         Handle<Array> r = Array::New();
         results = Persistent<Array>::New(r);
@@ -467,22 +464,36 @@ class Connection : public node::EventEmitter {
     }
 
     static Handle<Value>
-    Connect (const Arguments &args) {
-        Connection *connection = ObjectWrap::Unwrap<Connection>(args.This());
+    Connect(const Arguments &args) {
         HandleScope scope;
+
         String::Utf8Value host(args[0]->ToString());
+        Connection *connection = ObjectWrap::Unwrap<Connection>(args.This());
         connection->Connect(*host, args[1]->Int32Value());
 
         return Undefined();
     }
 
     static Handle<Value>
-    Find(const Arguments &args) {
-        HandleScope scope;
+    Close(const Arguments &args) {
         Connection *connection = ObjectWrap::Unwrap<Connection>(args.This());
+
+        HandleScope scope;
+
+        connection->Close();
+
+        return Undefined();
+    }
+
+    static Handle<Value>
+    Find(const Arguments &args) {
+        Connection *connection = ObjectWrap::Unwrap<Connection>(args.This());
+
+        HandleScope scope;
 
         // TODO assert ns != undefined (args.Length > 0)
         String::Utf8Value ns(args[0]->ToString());
+
         bson query_bson;
         bson query_fields_bson;
         int nToReturn(0), nToSkip(0);
@@ -527,9 +538,10 @@ class Connection : public node::EventEmitter {
 
     static Handle<Value>
     Insert(const Arguments &args) {
-        pdebug("inserting here\n");
-        HandleScope scope;
         Connection *connection = ObjectWrap::Unwrap<Connection>(args.This());
+
+        HandleScope scope;
+
         String::Utf8Value ns(args[0]->ToString());
         // TODO assert ns != undefined (args.Length > 0)
 
@@ -547,8 +559,10 @@ class Connection : public node::EventEmitter {
 
     static Handle<Value>
     Update(const Arguments &args) {
-        HandleScope scope;
         Connection *connection = ObjectWrap::Unwrap<Connection>(args.This());
+
+        HandleScope scope;
+
         String::Utf8Value ns(args[0]->ToString());
         // TODO assert ns != undefined (args.Length > 0)
 
@@ -609,15 +623,18 @@ class Connection : public node::EventEmitter {
             StopWriteWatcher();
             if (get_more) {
                 RequestMore();
+                return;
             }
             else {
                 Emit(String::New("ready"), 0, NULL);
+                return;
             }
         }
         if (revents & EV_READ) {
             pdebug("!!! got a read event\n");
             ConsumeInput();
             CheckBufferContents();
+            return;
         }
         if (revents & EV_ERROR) {
             pdebug("!!! got an error event\n");

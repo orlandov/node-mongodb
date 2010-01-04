@@ -7,6 +7,10 @@ mongodb = require("./mongodb");
 
 var mongo = new mongodb.MongoDB();
 
+mongo.addListener("close", function () {
+    sys.puts("Tests done!");
+});
+
 mongo.addListener("connection", function () {
     var widgets = mongo.getCollection('widgets');
 
@@ -52,7 +56,7 @@ mongo.addListener("connection", function () {
                     assertTrue(results[i].shazbot != 0);
                 }
 
-                sys.puts("Tests done!");
+                mongo.close();
             });
         });
     });

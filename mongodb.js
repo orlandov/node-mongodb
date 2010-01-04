@@ -64,6 +64,10 @@ function MongoDB() {
 
     self = this;
 
+    this.connection.addListener("close", function () {
+        self.emit("close");
+    });
+
     this.connection.addListener("ready", function () {
         self.dispatch();
     });
@@ -90,6 +94,10 @@ MongoDB.prototype.connect = function(args) {
     this.db = args.db;
 
     this.connection.connect(this.hostname, this.port);
+}
+
+MongoDB.prototype.close = function() {
+    this.connection.close();
 }
 
 MongoDB.prototype.addQuery = function(promise, ns, query, fields, limit, skip ) {
