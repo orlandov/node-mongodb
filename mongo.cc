@@ -78,6 +78,7 @@ class Connection : public node::EventEmitter {
         NODE_SET_PROTOTYPE_METHOD(t, "connect", Connect);
         NODE_SET_PROTOTYPE_METHOD(t, "find", Find);
         NODE_SET_PROTOTYPE_METHOD(t, "insert", Insert);
+        NODE_SET_PROTOTYPE_METHOD(t, "remove", Remove);
 
         target->Set(String::NewSymbol("Connection"), t->GetFunction());
     }
@@ -420,6 +421,10 @@ class Connection : public node::EventEmitter {
         mongo_insert(conn, ns, &obj);
     }
 
+    void Remove(const char *ns, bson cond) {
+        mongo_remove(conn, ns, &cond);
+    }
+
     protected:
 
     static Handle<Value>
@@ -526,6 +531,29 @@ class Connection : public node::EventEmitter {
         connection->Insert(*ns, obj);
 
         bson_destroy(&obj);
+        return Undefined();
+    }
+
+    static Handle<Value>
+    Remove(const Arguments &args) {
+        HandleScope scope;
+        Connection *connection = ObjectWrap::Unwrap<Connection>(args.This());
+        String::Utf8Value ns(args[0]->ToString());
+        // TODO assert ns != undefined (args.Length > 0)
+
+        bson cond;
+        if (args.Length() > 1 && !args[1]->IsUndefined()) {
+            printf("got custom query\n");
+            Local<Object> query(args[1]->ToObject());
+            cond = encodeObject(query);
+        }
+        else {
+            bson_empty(&cond);
+        }
+
+        connection->Remove(*ns, cond);
+
+        bson_destroy(&cond);
         return Undefined();
     }
 

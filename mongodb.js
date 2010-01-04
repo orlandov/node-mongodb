@@ -19,6 +19,10 @@ Collection.prototype.insert = function(obj) {
     this.mongo.connection.insert(this.ns, obj);
 }
 
+Collection.prototype.remove = function(query) {
+    this.mongo.connection.remove(this.ns, query);
+}
+
 Collection.prototype.find_one = function(query, fields, ns) {
     var promise = new process.Promise;
     var user_promise = new process.Promise;
