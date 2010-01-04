@@ -15,6 +15,10 @@ Collection.prototype.find = function(query, fields) {
     return promise;
 }
 
+Collection.prototype.insert = function(obj) {
+    this.mongo.connection.insert(this.ns, obj);
+}
+
 Collection.prototype.find_one = function(query, fields, ns) {
     var promise = new process.Promise;
     var user_promise = new process.Promise;

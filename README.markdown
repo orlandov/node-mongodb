@@ -1,10 +1,10 @@
 NAME
-====
+----
 
 node-mongodb - An asynchronous Node interface to MongoDB
 
 SYNOPSYS
-========
+--------
 
     sys = require("sys");
     mongodb = require("./mongodb");
@@ -29,7 +29,7 @@ SYNOPSYS
     });
 
 DESCRIPTION
-===========
+-----------
 
 This is an attempt at MongoDB bindings for Node. The important thing here
 is to ensure that we never let ourselves or any libraries block on IO. As
@@ -47,7 +47,7 @@ Installation
 - node test_mongo.js
 
 BUGS
-====
+----
 
 This package is EXPERIMENTAL, with emphasis on MENTAL. I am working on this in
 my spare time to learn the Node, v8 and MongoDB API's.
@@ -59,19 +59,19 @@ I would appreciate any and all patches, suggestions and constructive
 criticisms.
 
 ACKNOWLEDGEMENTS
-================
+----------------
 
 - ryah's Node postgres driver was the foundation for this extension
 - MongoDB C drivers
 - The people in #node.js and #mongodb on freenode for answering my questions
 
 SEE ALSO
-========
+--------
 
 - http://github.com/ry/node_postgres
 - http://github.com/mongodb/mongo-c-driver
 
 AUTHOR
-======
+------
 
 Orlando Vazquez (ovazquez@gmail.com)

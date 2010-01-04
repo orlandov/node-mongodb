@@ -77,6 +77,7 @@ class Connection : public node::EventEmitter {
 
         NODE_SET_PROTOTYPE_METHOD(t, "connect", Connect);
         NODE_SET_PROTOTYPE_METHOD(t, "find", Find);
+        NODE_SET_PROTOTYPE_METHOD(t, "insert", Insert);
 
         target->Set(String::NewSymbol("Connection"), t->GetFunction());
     }
@@ -402,18 +403,21 @@ class Connection : public node::EventEmitter {
         }
     }
 
-    bool Find(Local<String> ns, bson *query=0, bson *query_fields=0, int nToReturn=0, int nToSkip=0) {
-        String::Utf8Value ns_str(ns);
+    bool Find(const char *ns, bson *query=0, bson *query_fields=0, int nToReturn=0, int nToSkip=0) {
 
         cursor = static_cast<mongo_cursor*>(bson_malloc(sizeof(mongo_cursor)));
-        int sl = strlen(*ns_str)+1;
+        int sl = strlen(ns)+1;
         cursor->ns = static_cast<char*>(bson_malloc(sl));
 
-        memcpy(static_cast<void*>(const_cast<char*>(cursor->ns)), *ns_str, sl);
+        memcpy(static_cast<void*>(const_cast<char*>(cursor->ns)), ns, sl);
         cursor->conn = conn;
 
-        node_mongo_find(conn, *ns_str, query, query_fields, nToReturn, nToSkip, 0);
+        node_mongo_find(conn, ns, query, query_fields, nToReturn, nToSkip, 0);
         StartReadWatcher();
+    }
+
+    void Insert(const char *ns, bson obj) {
+        mongo_insert(conn, ns, &obj);
     }
 
     protected:
@@ -457,12 +461,12 @@ class Connection : public node::EventEmitter {
     }
 
     static Handle<Value>
-    Find (const Arguments &args) {
+    Find(const Arguments &args) {
         HandleScope scope;
         Connection *connection = ObjectWrap::Unwrap<Connection>(args.This());
 
         // TODO assert ns != undefined (args.Length > 0)
-        Local<String> ns(args[0]->ToString());
+        String::Utf8Value ns(args[0]->ToString());
         bson query_bson;
         bson query_fields_bson;
         int nToReturn(0), nToSkip(0);
@@ -498,10 +502,30 @@ class Connection : public node::EventEmitter {
             printf("custom skip %d\n", nToSkip);
         }
 
-        connection->Find(ns, &query_bson, &query_fields_bson, nToReturn, nToSkip);
+        connection->Find(*ns, &query_bson, &query_fields_bson, nToReturn, nToSkip);
 
         bson_destroy(&query_bson);
         bson_destroy(&query_fields_bson);
+        return Undefined();
+    }
+
+    static Handle<Value>
+    Insert(const Arguments &args) {
+        HandleScope scope;
+        Connection *connection = ObjectWrap::Unwrap<Connection>(args.This());
+        String::Utf8Value ns(args[0]->ToString());
+        // TODO assert ns != undefined (args.Length > 0)
+
+        bson obj;
+        if (args.Length() > 1 && !args[1]->IsUndefined()) {
+            printf("got custom query\n");
+            Local<Object> query(args[1]->ToObject());
+            obj = encodeObject(query);
+        }
+
+        connection->Insert(*ns, obj);
+
+        bson_destroy(&obj);
         return Undefined();
     }
 
