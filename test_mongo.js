@@ -13,14 +13,14 @@ mongo.addListener("connection", function () {
     widgets.remove();
 
     widgets.count().addCallback(function(count) {
-        assertEquals(count, 0);
+        assertEquals(0, count);
 
         widgets.insert({ foo: 1, shazbot: 1 });
         widgets.insert({ bar: "a", shazbot: 2 });
         widgets.insert({ baz: 42.5, shazbot: 0 });
 
         widgets.count().addCallback(function (count) {
-            assertEquals(count, 3);
+            assertEquals(3, count);
         });
 
         widgets.find().addCallback(function (results) {
@@ -29,8 +29,8 @@ mongo.addListener("connection", function () {
 
         widgets.find({ shazbot: { "$gt": 0 } }).addCallback(function (results) {
             assertEquals(results.length, 2);
-            for (r in results) {
-                assertEquals(r['baz'], undefined);
+            for (var i = 0; i < results.length; i++) {
+                assertEquals(results[i]['baz'], undefined);
             }
         });
 
@@ -44,6 +44,15 @@ mongo.addListener("connection", function () {
             }
             shazbots.sort();
             assertEquals(shazbots, [0, 1, 2]);
+
+            widgets.update({ shazbot: 0 }, { shazbot: 420 });
+
+            widgets.find().addCallback(function (results) {
+                sys.puts(jjj(results));
+                for (var i = 0; i < results.length; i++) {
+                    assertTrue(results[i].shazbot != 0);
+                }
+            });
         });
     });
 });

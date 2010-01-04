@@ -38,7 +38,7 @@ void setNonBlocking(int sock) {
     fcntl(sock, F_SETFL, sockflags | O_NONBLOCK);
 }
 
-void node_mongo_find(mongo_connection* conn, const char* ns, bson* query, bson* fields, int nToReturn, int nToSkip, int options) {
+void non_blocking_mongo_find(mongo_connection* conn, const char* ns, bson* query, bson* fields, int nToReturn, int nToSkip, int options) {
     int sl;
     char * data;
     mongo_message * mm = mongo_message_create( 16 + /* header */
@@ -78,6 +78,7 @@ class Connection : public node::EventEmitter {
         NODE_SET_PROTOTYPE_METHOD(t, "connect", Connect);
         NODE_SET_PROTOTYPE_METHOD(t, "find", Find);
         NODE_SET_PROTOTYPE_METHOD(t, "insert", Insert);
+        NODE_SET_PROTOTYPE_METHOD(t, "update", Update);
         NODE_SET_PROTOTYPE_METHOD(t, "remove", Remove);
 
         target->Set(String::NewSymbol("Connection"), t->GetFunction());
@@ -413,16 +414,21 @@ class Connection : public node::EventEmitter {
         memcpy(static_cast<void*>(const_cast<char*>(cursor->ns)), ns, sl);
         cursor->conn = conn;
 
-        node_mongo_find(conn, ns, query, query_fields, nToReturn, nToSkip, 0);
+        non_blocking_mongo_find(conn, ns, query, query_fields, nToReturn, nToSkip, 0);
         StartReadWatcher();
     }
 
     void Insert(const char *ns, bson obj) {
+        printf("doing a mongo insert\n");
         mongo_insert(conn, ns, &obj);
     }
 
     void Remove(const char *ns, bson cond) {
         mongo_remove(conn, ns, &cond);
+    }
+
+    void Update(const char *ns, bson cond, bson obj) {
+        mongo_update(conn, ns, &cond, &obj, 0);
     }
 
     protected:
@@ -516,20 +522,55 @@ class Connection : public node::EventEmitter {
 
     static Handle<Value>
     Insert(const Arguments &args) {
+        printf("inserting here\n");
         HandleScope scope;
         Connection *connection = ObjectWrap::Unwrap<Connection>(args.This());
         String::Utf8Value ns(args[0]->ToString());
         // TODO assert ns != undefined (args.Length > 0)
 
         bson obj;
-        if (args.Length() > 1 && !args[1]->IsUndefined()) {
-            printf("got custom query\n");
-            Local<Object> query(args[1]->ToObject());
-            obj = encodeObject(query);
-        }
+
+        // XXX check args > 1
+        Local<Object> query(args[1]->ToObject());
+        obj = encodeObject(query);
 
         connection->Insert(*ns, obj);
 
+        bson_destroy(&obj);
+        return Undefined();
+    }
+
+    static Handle<Value>
+    Update(const Arguments &args) {
+        HandleScope scope;
+        Connection *connection = ObjectWrap::Unwrap<Connection>(args.This());
+        String::Utf8Value ns(args[0]->ToString());
+        // TODO assert ns != undefined (args.Length > 0)
+
+        bson cond;
+        bson obj;
+
+        if (args.Length() > 1 && !args[1]->IsUndefined()) {
+            printf("got custom query\n");
+            Local<Object> query(args[1]->ToObject());
+            cond = encodeObject(query);
+        }
+        else {
+            bson_empty(&cond);
+        }
+
+        if (args.Length() > 2 && !args[2]->IsUndefined()) {
+            printf("got custom query\n");
+            Local<Object> query(args[2]->ToObject());
+            obj = encodeObject(query);
+        }
+        else {
+            bson_empty(&obj);
+        }
+
+        connection->Update(*ns, cond, obj);
+
+        bson_destroy(&cond);
         bson_destroy(&obj);
         return Undefined();
     }
@@ -558,7 +599,6 @@ class Connection : public node::EventEmitter {
     }
 
     void Event(EV_P_ ev_io *w, int revents) {
-
         if (revents & EV_WRITE) {
             printf("!!! got a write event\n");
             StopWriteWatcher();

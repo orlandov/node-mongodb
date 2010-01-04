@@ -15,8 +15,14 @@ Collection.prototype.find = function(query, fields) {
     return promise;
 }
 
+jjj = JSON.stringify
+
 Collection.prototype.insert = function(obj) {
     this.mongo.connection.insert(this.ns, obj);
+}
+
+Collection.prototype.update = function(cond, obj) {
+    this.mongo.connection.update(this.ns, cond, obj);
 }
 
 Collection.prototype.remove = function(query) {
@@ -44,7 +50,7 @@ Collection.prototype.count = function(query) {
         "query": query
     }
 
-    user_promise = new process.Promise;
+    var user_promise = new process.Promise;
     promise = this.find_one(cmd, {}, ns);
     promise.addCallback(function (result) {
         // check $err
