@@ -680,7 +680,6 @@ extern "C" void
 init (Handle<Object> target) {
     pdebug("headersize was %d\n", headerSize);
     HandleScope scope;
-    printf("about to init objectid\n");
     ObjectID::Initialize(target);
     Connection::Initialize(target);
 }

@@ -1,5 +1,6 @@
 #include <v8.h>
 #include <node.h>
+#include <node_object_wrap.h>
 extern "C" {
     #define MONGO_HAVE_STDINT
     #include <bson.h>
@@ -10,15 +11,33 @@ extern "C" {
 using namespace v8;
 
 Persistent<FunctionTemplate> ObjectID::constructor_template;
+
 void ObjectID::Initialize(Handle<Object> target) {
     HandleScope scope;
-    Local<FunctionTemplate> t = FunctionTemplate::New(ObjectID::New);
-    ObjectID::constructor_template = Persistent<FunctionTemplate>::New(t);
-    ObjectID::constructor_template->InstanceTemplate()->SetInternalFieldCount(1);
-    ObjectID::constructor_template->SetClassName(String::NewSymbol("ObjectID"));
 
-    target->Set(String::NewSymbol("ObjectID"),
-                t->GetFunction());
+    Local<FunctionTemplate> t = FunctionTemplate::New(ObjectID::New);
+    constructor_template = Persistent<FunctionTemplate>::New(t);
+    constructor_template->InstanceTemplate()->SetInternalFieldCount(1);
+    constructor_template->SetClassName(String::NewSymbol("ObjectID"));
+
+    NODE_SET_PROTOTYPE_METHOD(ObjectID::constructor_template, "toString", ObjectID::ToString);
+
+    target->Set(String::NewSymbol("ObjectID"), constructor_template->GetFunction());
+}
+
+void
+ObjectID::str(char *str) {
+    bson_oid_to_string(&oid, str);
+}
+
+Handle<Value>
+ObjectID::ToString(const Arguments &args) {
+    ObjectID *o = ObjectWrap::Unwrap<ObjectID>(args.This());
+
+    HandleScope scope;
+    char hex[25];
+    o->str(hex);
+    return String::New(hex);
 }
 
 const char *
@@ -136,7 +155,12 @@ decodeObjectStr(const char *buf) {
                     char hex_oid[25];
                     bson_oid_t *oid = bson_iterator_oid(&it);
                     bson_oid_to_string(oid, hex_oid);
-                    obj->Set(String::New(key), String::New(hex_oid));
+                    Handle<Value> argv[1];
+                    argv[0] = String::New(hex_oid);
+
+                    obj->Set(String::New(key),
+                             ObjectID::constructor_template
+                             ->GetFunction()->NewInstance(1, argv));
                 }
                 break;
 

@@ -5,6 +5,10 @@ process.mixin(GLOBAL, require('mjsunit'));
 sys = require("sys");
 mongodb = require("./mongodb");
 
+var oid_hex = "123456789012345678901234";
+var oid = new mongodb.ObjectID(oid_hex);
+assertEquals(oid.toString(), oid_hex);
+
 var mongo = new mongodb.MongoDB();
 
 mongo.addListener("close", function () {
@@ -34,6 +38,8 @@ mongo.addListener("connection", function () {
         widgets.find({ shazbot: { "$gt": 0 } }).addCallback(function (results) {
             assertEquals(results.length, 2);
             for (var i = 0; i < results.length; i++) {
+                // check that we had a validish oid
+                assertTrue(results[i]['_id'].toString().length == 24);
                 assertEquals(results[i]['baz'], undefined);
             }
         });

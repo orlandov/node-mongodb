@@ -2,8 +2,6 @@ sys = require("sys");
 
 var mongo = require("./mongo");
 
-var oid = new mongo.ObjectID("9876543210987654321098765");
-
 function Collection(mongo, db, name) {
     this.mongo = mongo;
     this.ns = db + "." + name;
@@ -123,3 +121,4 @@ MongoDB.prototype.getCollection = function(name) {
 }
 
 exports.MongoDB = MongoDB;
+exports.ObjectID = mongo.ObjectID
