@@ -1,6 +1,8 @@
 sys = require("sys");
 
-Connection = require("./mongo").Connection
+var mongo = require("./mongo");
+
+var oid = new mongo.ObjectID("9876543210987654321098765");
 
 function Collection(mongo, db, name) {
     this.mongo = mongo;
@@ -60,7 +62,7 @@ Collection.prototype.count = function(query) {
 }
 
 function MongoDB() {
-    this.connection = new Connection;
+    this.connection = new mongo.Connection;
 
     self = this;
 

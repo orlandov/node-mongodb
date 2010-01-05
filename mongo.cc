@@ -8,6 +8,7 @@
 #include <v8.h>
 
 #include <node.h>
+#include <node_object_wrap.h>
 #include <node_events.h>
 
 extern "C" {
@@ -73,9 +74,9 @@ class Connection : public node::EventEmitter {
     Initialize (Handle<Object> target) {
         HandleScope scope;
 
-        Local<FunctionTemplate> t = FunctionTemplate::New(New);
+        Local<FunctionTemplate> t = FunctionTemplate::New(Connection::New);
 
-        t->Inherit(EventEmitter::constructor_template);
+        t->Inherit(node::EventEmitter::constructor_template);
         t->InstanceTemplate()->SetInternalFieldCount(1);
 
         NODE_SET_PROTOTYPE_METHOD(t, "connect", Connect);
@@ -231,7 +232,7 @@ class Connection : public node::EventEmitter {
         }
     }
 
-    bool RequestMore() {
+    void RequestMore() {
         HandleScope scope;
 
         char* data;
@@ -252,8 +253,6 @@ class Connection : public node::EventEmitter {
 
         StartReadWatcher();
         StopWriteWatcher();
-
-        return true;
     }
 
     void ParseMessage() {
@@ -444,7 +443,7 @@ class Connection : public node::EventEmitter {
         return args.This();
     }
 
-    Connection() : EventEmitter() {
+    Connection() : node::EventEmitter() {
         HandleScope scope;
         Handle<Array> r = Array::New();
         results = Persistent<Array>::New(r);
@@ -681,5 +680,7 @@ extern "C" void
 init (Handle<Object> target) {
     pdebug("headersize was %d\n", headerSize);
     HandleScope scope;
+    printf("about to init objectid\n");
+    ObjectID::Initialize(target);
     Connection::Initialize(target);
 }

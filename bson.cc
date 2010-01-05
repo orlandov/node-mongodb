@@ -1,12 +1,25 @@
 #include <v8.h>
 #include <node.h>
-
 extern "C" {
     #define MONGO_HAVE_STDINT
     #include <bson.h>
 }
 
+#include "bson.h"
+
 using namespace v8;
+
+Persistent<FunctionTemplate> ObjectID::constructor_template;
+void ObjectID::Initialize(Handle<Object> target) {
+    HandleScope scope;
+    Local<FunctionTemplate> t = FunctionTemplate::New(ObjectID::New);
+    ObjectID::constructor_template = Persistent<FunctionTemplate>::New(t);
+    ObjectID::constructor_template->InstanceTemplate()->SetInternalFieldCount(1);
+    ObjectID::constructor_template->SetClassName(String::NewSymbol("ObjectID"));
+
+    target->Set(String::NewSymbol("ObjectID"),
+                t->GetFunction());
+}
 
 const char *
 ToCString(const String::Utf8Value& value) {
