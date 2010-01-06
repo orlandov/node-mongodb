@@ -2,6 +2,8 @@
 
 process.mixin(GLOBAL, require('mjsunit'));
 
+jjj = JSON.stringify;
+
 var sys = require("sys");
 var mongodb = require("./mongodb");
 
@@ -29,8 +31,9 @@ mongo.addListener("connection", function () {
         widgets.insert({ bar: "a", shazbot: 2 });
         widgets.insert({ baz: 42.5, shazbot: 0 });
 
-        widgets.find_one({ _id: new mongodb.ObjectID(oid_hex) }, function (result) {
-            assertEquals(results._id.toString(), hex_oid);
+        widgets.find_one({ _id: new mongodb.ObjectID(oid_hex) }).addCallback(function (result) {
+            assertEquals(result._id.toString(), oid_hex);
+            assertEquals(result.dude, "lebowski");
         });
 
         widgets.count().addCallback(function (count) {

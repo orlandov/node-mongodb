@@ -108,6 +108,11 @@ bson encodeObject(const Local<Value> element) {
             assert(obj->InternalFieldCount() > 0);
             ObjectID *o = static_cast<ObjectID*>(Handle<External>::Cast(
                         obj->GetInternalField(0))->Value());
+            bson_oid_t oid;
+            char oid_hex[25];
+            o->str(oid_hex);
+            bson_oid_from_string(&oid, oid_hex);
+            bson_append_oid(&bb, pname, &oid);
         }
         else if (prop_val->IsObject()) {
             bson bson(encodeObject(prop_val));
