@@ -2,8 +2,8 @@
 
 process.mixin(GLOBAL, require('mjsunit'));
 
-sys = require("sys");
-mongodb = require("./mongodb");
+var sys = require("sys");
+var mongodb = require("./mongodb");
 
 var oid_hex = "123456789012345678901234";
 var oid = new mongodb.ObjectID(oid_hex);

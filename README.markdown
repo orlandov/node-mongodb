@@ -6,36 +6,81 @@ node-mongodb - An asynchronous Node interface to MongoDB
 SYNOPSYS
 --------
 
-    sys = require("sys");
-    mongodb = require("./mongodb");
+    var sys     = require("sys");
+    var mongodb = require("./mongodb");
 
     var mongo = new mongodb.MongoDB();
+
+    mongo.addListener("close", function () {
+        sys.puts("Closing connection!");
+    });
 
     mongo.addListener("connection", function () {
         var widgets = mongo.getCollection('widgets');
 
-        widgets.find({}, {}).addCallback(function (result) {
-            sys.puts(JSON.stringify(result));
-        });
-        widgets.find({}, { "hello": true }).addCallback(function (result) {
-            sys.puts(JSON.stringify(result));
+        // remove widgets with shazbot > 0
+        widgets.remove({ shazbot: { "$gt": 0 } });
+
+        // actually, just remove all widgets
+        widgets.remove();
+
+        widgets.count().addCallback(function(count) {
+            widgets.insert({ foo: 1,    shazbot: 1 });
+            widgets.insert({ bar: "a",  shazbot: 2 });
+            widgets.insert({ baz: 42.5, shazbot: 0 });
+
+            // count all the widgets
+            widgets.count().addCallback(function (count) {
+                sys.puts("there are " + count + " widgets");
+            });
+
+            // count all the widgets
+            widgets.count({ shazbot: { "$gt": 0 } }).addCallback(function (count) {
+                sys.puts(count + " widget shazbots are > 0");
+            });
+
+
+            // return every widget
+            widgets.find().addCallback(function (results) {
+                // ...
+            });
+
+            // return every widget with shazbot > 0
+            widgets.find({ shazbot: { "$gt": 0 } }).addCallback(function (results) {
+                // ...
+            });
+
+            // return only the shazbot field of every widget
+            widgets.find({}, { "shazbot": true }).addCallback(function (results) {
+                // update shazbot of first document with shazbot 0 to 420
+                widgets.update({ shazbot: 0 }, { shazbot: 420 });
+
+                widgets.find().addCallback(function (results) {
+                    for (var i = 0; i < results.length; i++) {
+                        // ...
+                    }
+
+                    // close the connection
+                    mongo.close();
+                });
+            });
         });
     });
 
     mongo.connect({
         hostname: '127.0.0.1',
         port: 27017,
-        db: 'test'
+        db: 'mylittledb'
     });
 
 DESCRIPTION
 -----------
 
-This is an attempt at MongoDB bindings for Node. The important thing here
-is to ensure that we never let ourselves or any libraries block on IO. As
-such, I've tried to do my best to make sure that connect() and recv() never
-block, but there may be bugs. The MongoDB C drivers are used to interface with
-the database, but some core functions needed to be rewritten  to operate in a
+This is an attempt at MongoDB bindings for Node. The important thing here is
+to ensure that we never let ourselves or any libraries block on IO. As such,
+I've tried to do my best to make sure that connect() and recv() never block,
+but there may be bugs. The MongoDB C drivers are used to interface with the
+database, but some core functions needed to be rewritten  to operate in a
 non-blocking manner.
 
 Installation
