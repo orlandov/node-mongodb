@@ -30,7 +30,6 @@ using namespace v8;
 enum ReadState {
     STATE_READ_HEAD,
     STATE_READ_REPLY,
-    STATE_PARSE_REPLY,
 };
 
 void setNonBlocking(int sock) {
@@ -131,7 +130,7 @@ class Connection : public node::EventEmitter {
         MongoCreateSocket();
     }
 
-    mongo_conn_return MongoCreateSocket() {
+    void MongoCreateSocket() {
         conn->sock = 0;
         conn->connected = 0;
 
@@ -143,12 +142,14 @@ class Connection : public node::EventEmitter {
 
         conn->sock = socket( AF_INET, SOCK_STREAM, 0 );
         if (conn->sock <= 0){
-            return mongo_conn_no_socket;
+            //return mongo_conn_no_socket;
+            // throw exception here?
         }
 
         setNonBlocking(conn->sock);
         int res = connect(conn->sock, (struct sockaddr*) &conn->sa, conn->addressSize);
 
+        // make sure we've gotten a non-blocking connection
         assert(res < 0);
         assert(errno == EINPROGRESS);
 
@@ -194,7 +195,7 @@ class Connection : public node::EventEmitter {
         Emit(String::New("close"), 0, NULL);
     }
 
-    void CheckBufferContents() {
+    void CheckBuffer() {
         if (state == STATE_READ_HEAD) {
             if (buflen >= headerSize) {
                 memcpy(&head, bufptr, headerSize);
@@ -207,18 +208,17 @@ class Connection : public node::EventEmitter {
             bson_little_endian32(&len, &head.len);
 
             if (len-buflen == 0) {
-                state = STATE_PARSE_REPLY;
-            }
-        }
-        if (state == STATE_PARSE_REPLY) {
-            ParseReply();
-            delete [] buf;
-            buf = bufptr = NULL;
-            buflen = 0;
+                // we've gotten the full response
+                ParseReply();
 
-            state = STATE_READ_HEAD;
-            StopReadWatcher();
-            StartWriteWatcher();
+                delete [] buf;
+                buf = bufptr = NULL;
+                buflen = 0;
+
+                state = STATE_READ_HEAD;
+                StopReadWatcher();
+                StartWriteWatcher();
+            }
         }
     }
 
@@ -229,21 +229,21 @@ class Connection : public node::EventEmitter {
         bson_little_endian32(&len, &head.len);
 
         char replybuf[len];
-        mongo_reply *out = reinterpret_cast<mongo_reply*>(replybuf);
+        mongo_reply *reply = reinterpret_cast<mongo_reply*>(replybuf);
 
-        out->head.len = len;
-        bson_little_endian32(&out->head.id, &head.id);
-        bson_little_endian32(&out->head.responseTo, &head.responseTo);
-        bson_little_endian32(&out->head.op, &head.op);
+        reply->head.len = len;
+        bson_little_endian32(&reply->head.id, &head.id);
+        bson_little_endian32(&reply->head.responseTo, &head.responseTo);
+        bson_little_endian32(&reply->head.op, &head.op);
 
-        bson_little_endian32(&out->fields.flag, &fields.flag);
-        bson_little_endian64(&out->fields.cursorID, &fields.cursorID);
-        bson_little_endian32(&out->fields.start, &fields.start);
-        bson_little_endian32(&out->fields.num, &fields.num);
+        bson_little_endian32(&reply->fields.flag, &fields.flag);
+        bson_little_endian64(&reply->fields.cursorID, &fields.cursorID);
+        bson_little_endian32(&reply->fields.start, &fields.start);
+        bson_little_endian32(&reply->fields.num, &fields.num);
 
-        memcpy(&out->objs, bufptr, len-sizeof(head)-sizeof(fields));
+        memcpy(&reply->objs, bufptr, len-sizeof(head)-sizeof(fields));
 
-        cursor->mm = out;
+        cursor->mm = reply;
         cursor->current.data = NULL;
 
         for (int i = results->Length(); AdvanceCursor(); i++){
@@ -253,12 +253,14 @@ class Connection : public node::EventEmitter {
 
         // if this is the last cursor
         if (!cursor->mm || ! fields.cursorID) {
+            FreeCursor();
             EmitResults();
-            get_more = false;
-        }
 
-        StopReadWatcher();
-        StartWriteWatcher();
+            get_more = false;
+            results.Dispose();
+            results.Clear();
+            results = Persistent<Array>::New(Array::New());
+        }
     }
 
     void FreeCursor() {
@@ -268,15 +270,7 @@ class Connection : public node::EventEmitter {
     }
 
     void EmitResults() {
-        FreeCursor();
-
         Emit(String::New("result"), 1, reinterpret_cast<Handle<Value> *>(&results));
-
-        // XXX better way to do this?
-        results.Dispose();
-        results.Clear();
-        Handle<Array> r = Array::New();
-        results = Persistent<Array>::New(r);
     }
 
     bool AdvanceCursor() {
@@ -419,8 +413,7 @@ class Connection : public node::EventEmitter {
 
     Connection() : node::EventEmitter() {
         HandleScope scope;
-        Handle<Array> r = Array::New();
-        results = Persistent<Array>::New(r);
+        results = Persistent<Array>::New(Array::New());
 
         cursor = false;
         get_more = false;
@@ -597,7 +590,7 @@ class Connection : public node::EventEmitter {
         if (revents & EV_READ) {
             pdebug("!!! got a read event\n");
             ConsumeInput();
-            CheckBufferContents();
+            CheckBuffer();
             return;
         }
         if (revents & EV_ERROR) {
@@ -643,7 +636,6 @@ class Connection : public node::EventEmitter {
 
 extern "C" void
 init (Handle<Object> target) {
-    pdebug("headersize was %d\n", headerSize);
     HandleScope scope;
     ObjectID::Initialize(target);
     Connection::Initialize(target);
