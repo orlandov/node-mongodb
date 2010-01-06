@@ -40,27 +40,31 @@ mongo.addListener("connection", function () {
             assertEquals(4, count);
         });
 
+        widgets.count({ shazbot: { "$lte": 1 } }).addCallback(function (count) {
+            assertEquals(2, count);
+        });
+
         widgets.find().addCallback(function (results) {
             assertEquals(results.length, 4);
         });
 
         widgets.find({ shazbot: { "$gt": 0 } }).addCallback(function (results) {
             assertEquals(results.length, 2);
-            for (var i = 0; i < results.length; i++) {
+            results.forEach(function (r) {
                 // check that we had a validish oid
-                assertTrue(results[i]['_id'].toString().length == 24);
-                assertEquals(results[i]['baz'], undefined);
-            }
+                assertTrue(r['_id'].toString().length == 24);
+                assertEquals(r['baz'], undefined);
+            });
         });
 
         widgets.find({}, { "shazbot": true }).addCallback(function (results) {
             var shazbots = [];
-            for (var i = 0; i < results.length; i++) {
-                shazbots.push(results[i].shazbot);
-                assertEquals(results[i]['foo'], undefined);
-                assertEquals(results[i]['bar'], undefined);
-                assertEquals(results[i]['baz'], undefined);
-            }
+            results.forEach(function (r) {
+                shazbots.push(r.shazbot);
+                assertEquals(r['foo'], undefined);
+                assertEquals(r['bar'], undefined);
+                assertEquals(r['baz'], undefined);
+            });
             shazbots.sort();
             assertEquals(shazbots, [0, 1, 2]);
 

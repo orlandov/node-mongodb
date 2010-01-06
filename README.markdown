@@ -39,6 +39,12 @@ SYNOPSYS
                 sys.puts(count + " widget shazbots are > 0");
             });
 
+            // count shazbots less than or equal to 1
+            widgets.count({ shazbot: { "$lte": 1 } })
+                   .addCallback(function (count) {
+                assertEquals(2, count);
+            });
+
             // return all widgets
             widgets.find().addCallback(function (results) {
                 // ...
@@ -55,9 +61,9 @@ SYNOPSYS
                 widgets.update({ shazbot: 0 }, { shazbot: 420 });
 
                 widgets.find().addCallback(function (results) {
-                    for (var i = 0; i < results.length; i++) {
+                    results.forEach(function(r) {
                         // ...
-                    }
+                    });
 
                     // close the connection
                     mongo.close();
