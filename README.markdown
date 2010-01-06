@@ -34,18 +34,17 @@ SYNOPSYS
                 sys.puts("there are " + count + " widgets");
             });
 
-            // count all the widgets
+            // count widgets with shazbot > 0
             widgets.count({ shazbot: { "$gt": 0 } }).addCallback(function (count) {
                 sys.puts(count + " widget shazbots are > 0");
             });
 
-
-            // return every widget
+            // return all widgets
             widgets.find().addCallback(function (results) {
                 // ...
             });
 
-            // return every widget with shazbot > 0
+            // return widgets with shazbot > 0
             widgets.find({ shazbot: { "$gt": 0 } }).addCallback(function (results) {
                 // ...
             });
