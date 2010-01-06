@@ -29,13 +29,9 @@ using namespace v8;
 
 enum ReadState {
     STATE_READ_HEAD,
-    STATE_READ_MESSAGE,
-    STATE_PARSE_MESSAGE,
+    STATE_READ_REPLY,
+    STATE_PARSE_REPLY,
 };
-
-inline bool ARG_DEFINED(const Arguments &args, const int n) {
-    return args.Length() > n && !args[n]->IsUndefined();
-}
 
 void setNonBlocking(int sock) {
     int sockflags = fcntl(sock, F_GETFL, 0);
@@ -203,19 +199,19 @@ class Connection : public node::EventEmitter {
             if (buflen >= headerSize) {
                 memcpy(&head, bufptr, headerSize);
                 bufptr += headerSize;
-                state = STATE_READ_MESSAGE;
+                state = STATE_READ_REPLY;
             }
         }
-        if (state == STATE_READ_MESSAGE) {
+        if (state == STATE_READ_REPLY) {
             int len;
             bson_little_endian32(&len, &head.len);
 
             if (len-buflen == 0) {
-                state = STATE_PARSE_MESSAGE;
+                state = STATE_PARSE_REPLY;
             }
         }
-        if (state == STATE_PARSE_MESSAGE) {
-            ParseMessage();
+        if (state == STATE_PARSE_REPLY) {
+            ParseReply();
             delete [] buf;
             buf = bufptr = NULL;
             buflen = 0;
@@ -226,30 +222,7 @@ class Connection : public node::EventEmitter {
         }
     }
 
-    void RequestMore() {
-        HandleScope scope;
-
-        char* data;
-        int sl = strlen(cursor->ns)+1;
-        mongo_message * mm = mongo_message_create(16 /*header*/
-                                                 +4 /*ZERO*/
-                                                 +sl
-                                                 +4 /*numToReturn*/
-                                                 +8 /*cursorID*/
-                                                 , 0, 0, mongo_op_get_more);
-        data = &mm->data;
-        data = mongo_data_append32(data, &zero);
-        data = mongo_data_append(data, cursor->ns, sl);
-        data = mongo_data_append32(data, &zero);
-        data = mongo_data_append64(data, &fields.cursorID);
-        mongo_message_send(conn, mm);
-        state = STATE_READ_HEAD;
-
-        StartReadWatcher();
-        StopWriteWatcher();
-    }
-
-    void ParseMessage() {
+    void ParseReply() {
         HandleScope scope;
 
         int len;
@@ -269,12 +242,6 @@ class Connection : public node::EventEmitter {
         bson_little_endian32(&out->fields.num, &fields.num);
 
         memcpy(&out->objs, bufptr, len-sizeof(head)-sizeof(fields));
-
-        ParseReply(out);
-    }
-
-    void ParseReply(mongo_reply *out) {
-        HandleScope scope;
 
         cursor->mm = out;
         cursor->current.data = NULL;
@@ -384,6 +351,30 @@ class Connection : public node::EventEmitter {
             }
         }
     }
+
+    void RequestMore() {
+        HandleScope scope;
+
+        char* data;
+        int sl = strlen(cursor->ns)+1;
+        mongo_message * mm = mongo_message_create(16 /*header*/
+                                                 +4 /*ZERO*/
+                                                 +sl
+                                                 +4 /*numToReturn*/
+                                                 +8 /*cursorID*/
+                                                 , 0, 0, mongo_op_get_more);
+        data = &mm->data;
+        data = mongo_data_append32(data, &zero);
+        data = mongo_data_append(data, cursor->ns, sl);
+        data = mongo_data_append32(data, &zero);
+        data = mongo_data_append64(data, &fields.cursorID);
+        mongo_message_send(conn, mm);
+        state = STATE_READ_HEAD;
+
+        StartReadWatcher();
+        StopWriteWatcher();
+    }
+
 
     bool Find(const char *ns, bson *query=0, bson *query_fields=0,
               int nToReturn=0, int nToSkip=0) {
