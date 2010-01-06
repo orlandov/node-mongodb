@@ -23,16 +23,22 @@ mongo.addListener("connection", function () {
     widgets.count().addCallback(function(count) {
         assertEquals(0, count);
 
+        widgets.insert({ _id: new mongodb.ObjectID(oid_hex), "dude": "lebowski" });
+
         widgets.insert({ foo: 1, shazbot: 1 });
         widgets.insert({ bar: "a", shazbot: 2 });
         widgets.insert({ baz: 42.5, shazbot: 0 });
 
+        widgets.find_one({ _id: new mongodb.ObjectID(oid_hex) }, function (result) {
+            assertEquals(results._id.toString(), hex_oid);
+        });
+
         widgets.count().addCallback(function (count) {
-            assertEquals(3, count);
+            assertEquals(4, count);
         });
 
         widgets.find().addCallback(function (results) {
-            assertEquals(results.length, 3);
+            assertEquals(results.length, 4);
         });
 
         widgets.find({ shazbot: { "$gt": 0 } }).addCallback(function (results) {

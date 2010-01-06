@@ -86,7 +86,7 @@ bson encodeObject(const Local<Value> element) {
         // convert the property name to a c string
         String::Utf8Value n(prop_name);
         const char *pname = ToCString(n);
-       
+
         // append property using appropriate appender
         if (prop_val->IsString()) {
             encodeString(&bb, pname, prop_val);
@@ -99,6 +99,15 @@ bson encodeObject(const Local<Value> element) {
         }
         else if (prop_val->IsBoolean()) {
             encodeBoolean(&bb, pname, prop_val);
+        }
+        else if (prop_val->IsObject()
+                 && ObjectID::constructor_template->HasInstance(prop_val)) {
+            // get at the delicious wrapped object centre
+            Local<Object> obj = prop_val->ToObject();
+            assert(!obj.IsEmpty());
+            assert(obj->InternalFieldCount() > 0);
+            ObjectID *o = static_cast<ObjectID*>(Handle<External>::Cast(
+                        obj->GetInternalField(0))->Value());
         }
         else if (prop_val->IsObject()) {
             bson bson(encodeObject(prop_val));
