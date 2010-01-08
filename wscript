@@ -22,11 +22,6 @@ def configure(conf):
   conf.env.append_value("CPPPATH_MONGO", abspath("./mongo-c-driver/src"))
   
 def build(bld):
-#   bson = bld.new_task_gen('cxx', 'shlib', 'node_addon')
-#   bson.target = 'bson'
-#   bson.source = "bson.cc"
-#   bson.uselib = "BSON MONGO"
-
   mongo = bld.new_task_gen('cxx', 'shlib', 'node_addon')
   mongo.cxxflags = "-g"
   mongo.target = 'mongo'

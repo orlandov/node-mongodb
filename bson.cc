@@ -25,8 +25,25 @@ void ObjectID::Initialize(Handle<Object> target) {
     target->Set(String::NewSymbol("ObjectID"), constructor_template->GetFunction());
 }
 
-void
-ObjectID::str(char *str) {
+Handle<Value> ObjectID::New(const Arguments &args) {
+    HandleScope scope;
+
+    if (args.Length() < 1
+           || !args[0]->IsString()
+           || (args[0]->IsString()
+                && args[0]->ToString()->Length() != 24)) {
+        return ThrowException(Exception::Error(
+                String::New("Argument must be 24 character hex string")));
+    }
+
+    String::Utf8Value hex(args[0]->ToString());
+
+    ObjectID *o = new ObjectID((const char *) *hex);
+    o->Wrap(args.This());
+    return args.This();
+}
+
+void ObjectID::str(char *str) {
     bson_oid_to_string(&oid, str);
 }
 
@@ -216,14 +233,3 @@ decode(const Arguments &args) {
     HandleScope scope;
     return decodeObject(args[0]);
 }
-
-// extern "C" void
-// init (Handle<Object> target) {
-//     HandleScope scope;
-//     target->Set(
-//         String::New("encode"),
-//         FunctionTemplate::New(encode)->GetFunction());
-//     target->Set(
-//         String::New("decode"),
-//         FunctionTemplate::New(decode)->GetFunction());
-// }

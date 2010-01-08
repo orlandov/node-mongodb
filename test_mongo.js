@@ -2,14 +2,11 @@
 
 process.mixin(GLOBAL, require('mjsunit'));
 
-jjj = JSON.stringify;
+var jjj = JSON.stringify;
 
 var sys = require("sys");
 var mongodb = require("./mongodb");
-
 var oid_hex = "123456789012345678901234";
-var oid = new mongodb.ObjectID(oid_hex);
-assertEquals(oid.toString(), oid_hex);
 
 var mongo = new mongodb.MongoDB();
 
@@ -19,6 +16,9 @@ mongo.addListener("close", function () {
 
 mongo.addListener("connection", function () {
     var widgets = mongo.getCollection('widgets');
+
+    assertThrows("widgets.remove([1,2])");
+    assertThrows("widgets.remove(1)");
 
     widgets.remove();
 

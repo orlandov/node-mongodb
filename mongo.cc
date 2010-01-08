@@ -556,16 +556,26 @@ class Connection : public node::EventEmitter {
     Remove(const Arguments &args) {
         HandleScope scope;
         Connection *connection = ObjectWrap::Unwrap<Connection>(args.This());
+        if (!args[0]->IsString()) {
+            return ThrowException(
+                Exception::Error(
+                    String::New("ns must be specified")));
+        }
         String::Utf8Value ns(args[0]->ToString());
-        // TODO assert ns != undefined (args.Length > 0)
+        
 
         bson cond;
-        if (args.Length() > 1 && !args[1]->IsUndefined()) {
+        if (args.Length() > 1 && args[1]->IsObject()) {
             Local<Object> query(args[1]->ToObject());
             cond = encodeObject(query);
         }
-        else {
+        else if (args.Length() > 1 && args[1]->IsUndefined()) {
             bson_empty(&cond);
+        }
+        else if (args.Length() > 1 && !args[1]->IsObject()) {
+            return ThrowException(
+                Exception::Error(
+                    String::New("Condition must be an object")));
         }
 
         connection->Remove(*ns, cond);
@@ -637,6 +647,13 @@ class Connection : public node::EventEmitter {
 extern "C" void
 init (Handle<Object> target) {
     HandleScope scope;
+
+    target->Set(
+        String::New("encode"),
+        FunctionTemplate::New(encode)->GetFunction());
+    target->Set(
+        String::New("decode"),
+        FunctionTemplate::New(decode)->GetFunction());
     ObjectID::Initialize(target);
     Connection::Initialize(target);
 }

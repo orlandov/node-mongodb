@@ -20,19 +20,7 @@ class ObjectID : public node::ObjectWrap {
     bson_oid_t get() { return oid; }
     void str(char *);
     protected:
-    static Handle<Value> New(const Arguments& args) {
-        HandleScope scope;
-
-        String::Utf8Value hex(args[0]->ToString());
-        // TODO assert ns != undefined (args.Length > 0)
-        //
-        // arg 1 is a string with the hex code
-
-        ObjectID *o = new ObjectID((const char *)*hex);
-        o->Wrap(args.This());
-        return args.This();
-    }
-
+    static Handle<Value> New(const Arguments& args);
 
     ObjectID(const char *hex) : node::ObjectWrap() {
         bson_oid_from_string(&oid, hex);
@@ -42,6 +30,10 @@ class ObjectID : public node::ObjectWrap {
 
     bson_oid_t oid;
 };
+
+// v8 wrappers
+Handle<Value> encode(const Arguments &args);
+Handle<Value> decode(const Arguments &args);
 
 v8::Local<v8::Value> decodeObjectStr(const char *);
 bson encodeObject(const v8::Local<v8::Value> element);

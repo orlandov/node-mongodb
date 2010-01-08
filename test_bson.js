@@ -1,7 +1,10 @@
 process.mixin(GLOBAL, require('mjsunit'));
 
 sys = require("sys");
-bson = require("./bson");
+var mongo = require("./mongo");
+var mongodb = require("./mongodb");
+
+var bson = { encode: mongo.encode, decode: mongo.decode };
 
 function xxdCompare(actual, expected) {
     var proc = process.createChildProcess("xxd", ["-i"]);
@@ -52,9 +55,19 @@ function xxdPrint(str) {
     proc.close();
 }
 
-/*
-    Encoding
-*/
+/* OID */
+var oid_hex = "123456789012345678901234";
+var oid = new mongodb.ObjectID(oid_hex);
+assertEquals(oid.toString(), oid_hex);
+
+var mongo = new mongodb.MongoDB();
+
+assertThrows("new mongodb.ObjectID(\"12345\")");;
+assertThrows("new mongodb.ObjectID()");;
+assertThrows("new mongodb.ObjectID([1,2])");;
+assertThrows("new mongodb.ObjectID(1)");;
+
+/* Encoding */
 
 // strings
 {
@@ -123,9 +136,7 @@ function xxdPrint(str) {
     );
 }
 
-/*
-    Decoding
-*/
+/* Decoding */
 
 // strings
 {
