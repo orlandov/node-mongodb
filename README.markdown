@@ -18,6 +18,10 @@ SYNOPSYS
     mongo.addListener("connection", function () {
         var widgets = mongo.getCollection('widgets');
 
+        mongo.getCollections().addCallback(function (collections) {
+            sys.puts("the collections in the db are " + JSON.stringify(collections));
+        });
+
         // remove widgets with shazbot > 0
         widgets.remove({ shazbot: { "$gt": 0 } });
 

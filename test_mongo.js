@@ -15,6 +15,10 @@ mongo.addListener("close", function () {
 });
 
 mongo.addListener("connection", function () {
+    mongo.getCollections().addCallback(function (collections) {
+        collections.sort();
+        assertEquals(["system.indexes", "widgets"], collections);
+    });
     var widgets = mongo.getCollection('widgets');
 
     assertThrows("widgets.remove([1,2])");

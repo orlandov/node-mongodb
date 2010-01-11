@@ -120,5 +120,22 @@ MongoDB.prototype.getCollection = function(name) {
     return new Collection(this, this.db, name);
 }
 
+MongoDB.prototype.getCollections = function() {
+    var promise = new process.Promise;
+    var user_promise = new process.Promise;
+    this.addQuery(promise, this.db + ".system.namespaces");
+    promise.addCallback(function (results) {
+        var collections = [];
+        results.forEach(function (r) {
+            if (r.name.indexOf("$") != -1)
+                return;
+            collections.push(r.name.slice(r.name.indexOf(".")+1));
+        });
+        user_promise.emitSuccess(collections);
+    });
+
+    return user_promise;
+}
+
 exports.MongoDB = MongoDB;
 exports.ObjectID = mongo.ObjectID
