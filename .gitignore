@@ -1,0 +1,5 @@
+.dbshell
+.lock-wscript
+build
+mongo.node
+mongo-c-driver
