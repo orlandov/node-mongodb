@@ -1,6 +1,7 @@
 #include <v8.h>
 #include <node.h>
 #include <node_object_wrap.h>
+#include <sstream>
 extern "C" {
     #define MONGO_HAVE_STDINT
     #include <bson.h>
@@ -8,6 +9,7 @@ extern "C" {
 
 #include "bson.h"
 
+using namespace std;
 using namespace v8;
 
 Persistent<FunctionTemplate> ObjectID::constructor_template;
@@ -87,6 +89,58 @@ encodeBoolean(bson_buffer *bb, const char *name, const Local<Value> element) {
     bson_append_bool(bb, name, value);
 }
 
+void 
+encodeObjectID(bson_buffer *bb, const char *name, const Local<Value> element) {
+    // get at the delicious wrapped object centre
+    Local<Object> obj = element->ToObject();
+    assert(!obj.IsEmpty());
+    assert(obj->InternalFieldCount() > 0);
+    ObjectID *o = static_cast<ObjectID*>(Handle<External>::Cast(
+                obj->GetInternalField(0))->Value());
+    bson_oid_t oid;
+    char oid_hex[25];
+    o->str(oid_hex);
+    bson_oid_from_string(&oid, oid_hex);
+    bson_append_oid(bb, name, &oid);
+}
+
+void
+encodeArray(bson_buffer *bb, const char *name, const Local<Value> element) {
+    Local<Array> a = Array::Cast(*element);
+    bson_buffer *arr = bson_append_start_array(bb, name);
+
+    for (int i = 0, l=a->Length(); i < l; i++) {
+        Local<Value> val = a->Get(Number::New(i));
+        stringstream keybuf;
+        string keyval;
+        keybuf << i << endl;
+        keybuf >> keyval;
+        
+        if (val->IsString()) {
+            fprintf(stderr, "was a string\n");
+            encodeString(arr, keyval.c_str(), val);
+        }
+        else if (val->IsInt32()) {
+            encodeInteger(arr, keyval.c_str(), val);
+        }
+        else if (val->IsNumber()) {
+            encodeNumber(arr, keyval.c_str(), val);
+        }
+        else if (val->IsBoolean()) {
+            encodeBoolean(arr, keyval.c_str(), val);
+        }
+        else if (val->IsArray()) {
+            encodeArray(arr, keyval.c_str(), val);
+        }
+        else if (val->IsObject()) {
+            bson bson(encodeObject(val));
+            bson_append_bson(arr, keyval.c_str(), &bson);
+            bson_destroy(&bson);
+        }
+    }
+    bson_append_finish_object(arr);
+}
+
 bson encodeObject(const Local<Value> element) {
     HandleScope scope;
     bson_buffer bb;
@@ -117,19 +171,12 @@ bson encodeObject(const Local<Value> element) {
         else if (prop_val->IsBoolean()) {
             encodeBoolean(&bb, pname, prop_val);
         }
+        else if (prop_val->IsArray()) {
+            encodeArray(&bb, pname, prop_val);
+        }
         else if (prop_val->IsObject()
                  && ObjectID::constructor_template->HasInstance(prop_val)) {
-            // get at the delicious wrapped object centre
-            Local<Object> obj = prop_val->ToObject();
-            assert(!obj.IsEmpty());
-            assert(obj->InternalFieldCount() > 0);
-            ObjectID *o = static_cast<ObjectID*>(Handle<External>::Cast(
-                        obj->GetInternalField(0))->Value());
-            bson_oid_t oid;
-            char oid_hex[25];
-            o->str(oid_hex);
-            bson_oid_from_string(&oid, oid_hex);
-            bson_append_oid(&bb, pname, &oid);
+            encodeObjectID(&bb, pname, prop_val);
         }
         else if (prop_val->IsObject()) {
             bson bson(encodeObject(prop_val));

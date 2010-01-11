@@ -30,6 +30,7 @@ mongo.addListener("connection", function () {
         widgets.insert({ foo: 1, shazbot: 1 });
         widgets.insert({ bar: "a", shazbot: 2 });
         widgets.insert({ baz: 42.5, shazbot: 0 });
+        widgets.insert({ baz: 42.5, bucket: [1, 2] });
 
         widgets.find_one({ _id: new mongodb.ObjectID(oid_hex) }).addCallback(function (result) {
             assertEquals(result._id.toString(), oid_hex);
@@ -37,7 +38,7 @@ mongo.addListener("connection", function () {
         });
 
         widgets.count().addCallback(function (count) {
-            assertEquals(4, count);
+            assertEquals(5, count);
         });
 
         widgets.count({ shazbot: { "$lte": 1 } }).addCallback(function (count) {
@@ -45,7 +46,7 @@ mongo.addListener("connection", function () {
         });
 
         widgets.find().addCallback(function (results) {
-            assertEquals(results.length, 4);
+            assertEquals(results.length, 5);
         });
 
         widgets.find({ shazbot: { "$gt": 0 } }).addCallback(function (results) {

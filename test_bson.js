@@ -121,20 +121,79 @@ assertThrows("new mongodb.ObjectID(1)");;
         "\x00");
 }
 
+// arrays
+xxdCompare(
+    bson.encode({ 'mahbucket': [ 'foo', 'bar', 'baz' ] }),
+    "\x36\x00\x00\x00"        + // size
+    "\x04mahbucket\0"         + // type, key
+    "\x26\x00\x00\x00"        +
+    "\x02"+"0\0"              + // item 0
+    "\x04\x00\x00\x00foo\x00" +
+    "\x02"+"1\0"              + // item 1
+    "\x04\x00\x00\x00bar\x00" +
+    "\x02"+"2\0"              + // item 2
+    "\x04\x00\x00\x00baz\x00" +
+    "\x00" + 
+    "\x00"
+);
+
+// array with nested object
+xxdCompare(
+    bson.encode({ 'mahbucket': [ { 'foo': 'bar' } ] }),
+    "\x2a\x00\x00\x00"        + // size
+    "\x04mahbucket\0"         + // type, key
+    "\x1a\x00\x00\x00"        +
+    "\x03"+"0\0"              + // item 0
+    "\x12\x00\x00\x00"        + // size
+    "\x02foo\x00"             + // key
+    "\x04\x00\x00\x00bar\x00" + // value
+    "\x00" + 
+    "\x00" + 
+    "\x00"
+);
+
+// array with nested array
+xxdCompare(
+    bson.encode({ 'mahbucket': [ [ "foo", "bar" ], ["baz", "qux"] ] }),
+    "\x51\x00\x00\x00"        + // size
+    "\x04mahbucket\0"         + // type, key
+
+    "\x41\x00\x00\x00"        + // size of top level array
+
+    "\x04"+"0\0"              + // first sub array
+
+    "\x1b\x00\x00\x00"        + // size of inner array
+    "\x02"+"0\0"              + // item 0
+    "\x04\x00\x00\x00foo\x00" +
+    "\x02"+"1\0"              + // item 1
+    "\x04\x00\x00\x00bar\x00" +
+    "\x00"                    +
+
+    "\x04"+"1\0"              + // second sub array
+
+    "\x1b\x00\x00\x00"        + // size of inner array
+    "\x02"+"0\0"              + // item 0
+    "\x04\x00\x00\x00baz\x00" +
+    "\x02"+"1\0"              + // item 1
+    "\x04\x00\x00\x00qux\x00" +
+    "\x00" +
+
+    "\x00" + 
+    "\x00"
+);
+
 // nested objects
-{
-    xxdCompare(
-        bson.encode({ "great-old-ones": { "cthulhu": true } }),
-        "\x24\x00\x00\x00"     + // size
-        "\x03great-old-ones\0" + // type, key
-                                 // value:
-        "\x0f\x00\x00\x00"     + //   size
-        "\x08cthulhu\x00"      + //   type, key
-        "\x01"                 + //   value
-        "\x00"                 + //   eoo
-        "\x00"
-    );
-}
+xxdCompare(
+    bson.encode({ "great-old-ones": { "cthulhu": true } }),
+    "\x24\x00\x00\x00"     + // size
+    "\x03great-old-ones\0" + // type, key
+                             // value:
+    "\x0f\x00\x00\x00"     + //   size
+    "\x08cthulhu\x00"      + //   type, key
+    "\x01"                 + //   value
+    "\x00"                 + //   eoo
+    "\x00"
+);
 
 /* Decoding */
 
