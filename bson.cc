@@ -117,7 +117,6 @@ encodeArray(bson_buffer *bb, const char *name, const Local<Value> element) {
         keybuf >> keyval;
         
         if (val->IsString()) {
-            fprintf(stderr, "was a string\n");
             encodeString(arr, keyval.c_str(), val);
         }
         else if (val->IsInt32()) {
@@ -198,8 +197,9 @@ encode(const Arguments &args) {
     HandleScope scope;
 
     bson bson(encodeObject(args[0]));
-
-    return node::Encode(bson.data, bson_size(&bson), node::BINARY);
+    Handle<Value> ret = node::Encode(bson.data, bson_size(&bson), node::BINARY);
+    bson_destroy(&bson);
+    return ret;
 }
 
 Local<Value>
