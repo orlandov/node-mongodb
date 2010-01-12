@@ -98,7 +98,7 @@ Installation
 - Make sure you have git installed.
 - ./update-mongo-c-driver.sh
 - node-waf configure build
-- node test_mongo.js
+- ./run-tests.sh
 
 BUGS
 ----

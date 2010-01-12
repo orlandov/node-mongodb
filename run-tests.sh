@@ -1,4 +1,4 @@
 #!/bin/sh
 
-node test_bson.js
-node test_mongo.js
+node tests/test_bson.js
+node tests/test_mongo.js

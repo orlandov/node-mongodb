@@ -1,6 +1,7 @@
 import Options
 from os import unlink, symlink, popen
 from os.path import exists, abspath
+from shutil import copy
 
 srcdir = '.'
 blddir = 'build'
@@ -25,7 +26,7 @@ def build(bld):
   mongo = bld.new_task_gen('cxx', 'shlib', 'node_addon')
   mongo.cxxflags = "-g"
   mongo.target = 'mongo'
-  mongo.source = "mongo.cc bson.cc"
+  mongo.source = "src/mongo.cc src/bson.cc"
   mongo.uselib = "MONGO BSON"
 
 def shutdown():
@@ -35,4 +36,4 @@ def shutdown():
     if exists('mongo.node'): unlink('mongo.node')
   else:
     if exists('build/default/mongo.node') and not exists('mongo.node'):
-      symlink('build/default/mongo.node', 'mongo.node')
+      copy('build/default/mongo.node', 'lib/mongo.node')

@@ -1,8 +1,11 @@
-process.mixin(GLOBAL, require('mjsunit'));
+require.paths.push("lib");
 
-sys = require("sys");
-var mongo = require("./mongo");
-var mongodb = require("./mongodb");
+var sys     = require("sys"),
+    mongo   = require("mongo"),
+    mongodb = require("mongodb");
+
+process.mixin(GLOBAL, require('mjsunit'));
+jjj = JSON.stringify;
 
 var bson = { encode: mongo.encode, decode: mongo.decode };
 

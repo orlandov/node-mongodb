@@ -5,7 +5,11 @@ process.mixin(GLOBAL, require('mjsunit'));
 var jjj = JSON.stringify;
 
 var sys = require("sys");
-var mongodb = require("./mongodb");
+
+require.paths.push("lib");
+
+var mongodb = require("mongodb");
+
 var oid_hex = "123456789012345678901234";
 
 var mongo = new mongodb.MongoDB();
