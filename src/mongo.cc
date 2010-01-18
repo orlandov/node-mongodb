@@ -27,39 +27,9 @@ const int headerSize(sizeof(mongo_header) + sizeof(mongo_reply_fields));
 
 using namespace v8;
 
-enum ReadState {
-    STATE_READ_HEAD,
-    STATE_READ_REPLY,
-};
-
 void setNonBlocking(int sock) {
     int sockflags = fcntl(sock, F_GETFL, 0);
     fcntl(sock, F_SETFL, sockflags | O_NONBLOCK);
-}
-
-void non_blocking_mongo_find(mongo_connection* conn, const char* ns, bson* query, bson* fields, int nToReturn, int nToSkip, int options) {
-    int sl;
-    char * data;
-    mongo_message * mm = mongo_message_create( 16 + /* header */
-                                               4 + /*  options */
-                                               strlen( ns ) + 1 + /* ns */
-                                               4 + 4 + /* skip,return */
-                                               bson_size( query ) +
-                                               bson_size( fields ) ,
-                                               0 , 0 , mongo_op_query );
-
-    data = &mm->data;
-    data = mongo_data_append32( data , &options );
-    data = mongo_data_append( data , ns , strlen( ns ) + 1 );
-    data = mongo_data_append32( data , &nToSkip );
-    data = mongo_data_append32( data , &nToReturn );
-    data = mongo_data_append( data , query->data , bson_size( query ) );
-    if ( fields )
-        data = mongo_data_append( data , fields->data , bson_size( fields ) );
-
-    bson_fatal_msg( (data == ((char*)mm) + mm->head.len), "query building fail!" );
-
-    mongo_message_send( conn , mm );
 }
 
 class Connection : public node::EventEmitter {
@@ -185,63 +155,79 @@ class Connection : public node::EventEmitter {
     }
 
     void Close() {
+        pdebug("--- in Close()\n");
         HandleScope scope;
 
-        StopWriteWatcher();
-        StopReadWatcher();
+        if (writebuf) {
+            delete [] writebuf;
+            writebuf = NULL;
+            writebuflen = 0;
+        }
+
+        if (buf) {
+            delete [] buf;
+            buf = NULL;
+            buflen = 0;
+        }
+
+        buf = writebuf = NULL;
 
         mongo_destroy(conn);
 
+        pdebug("closed connection %d %d\n", get_more?1:0, writebuflen);
+        StopWriteWatcher();
+        StopReadWatcher();
         Emit(String::New("close"), 0, NULL);
     }
 
     void CheckBuffer() {
-        if (state == STATE_READ_HEAD) {
-            if (buflen >= headerSize) {
-                memcpy(&head, bufptr, headerSize);
-                bufptr += headerSize;
-                state = STATE_READ_REPLY;
-            }
-        }
-        if (state == STATE_READ_REPLY) {
-            int len;
-            bson_little_endian32(&len, &head.len);
+        if (buflen < headerSize) return;
 
-            if (len-buflen == 0) {
-                // we've gotten the full response
-                ParseReply();
+        mongo_header reply_head;
+        mongo_reply_fields reply_fields;
 
-                delete [] buf;
-                buf = bufptr = NULL;
-                buflen = 0;
+        memcpy(&reply_head, bufptr, sizeof(reply_head));
+        bufptr += sizeof(reply_head);
+        memcpy(&reply_fields, bufptr, sizeof(reply_fields));
+        bufptr += sizeof(reply_fields);
 
-                state = STATE_READ_HEAD;
-                StopReadWatcher();
-                StartWriteWatcher();
-            }
+        int len;
+        bson_little_endian32(&len, &reply_head.len);
+
+        if (len-buflen == 0) {
+            // we've gotten the full response
+            ParseReply(reply_head, reply_fields);
+
+            delete [] buf;
+            buf = bufptr = NULL;
+            buflen = 0;
+
+            StopReadWatcher();
+            StartWriteWatcher();
         }
     }
 
-    void ParseReply() {
+    void ParseReply(mongo_header reply_head, mongo_reply_fields reply_fields) {
         HandleScope scope;
 
         int len;
-        bson_little_endian32(&len, &head.len);
+        bson_little_endian32(&len, &reply_head.len);
 
         char replybuf[len];
+
         mongo_reply *reply = reinterpret_cast<mongo_reply*>(replybuf);
 
         reply->head.len = len;
-        bson_little_endian32(&reply->head.id, &head.id);
-        bson_little_endian32(&reply->head.responseTo, &head.responseTo);
-        bson_little_endian32(&reply->head.op, &head.op);
+        bson_little_endian32(&reply->head.id, &reply_head.id);
+        bson_little_endian32(&reply->head.responseTo, &reply_head.responseTo);
+        bson_little_endian32(&reply->head.op, &reply_head.op);
 
-        bson_little_endian32(&reply->fields.flag, &fields.flag);
-        bson_little_endian64(&reply->fields.cursorID, &fields.cursorID);
-        bson_little_endian32(&reply->fields.start, &fields.start);
-        bson_little_endian32(&reply->fields.num, &fields.num);
+        bson_little_endian32(&reply->fields.flag, &reply_fields.flag);
+        bson_little_endian64(&reply->fields.cursorID, &reply_fields.cursorID);
+        bson_little_endian32(&reply->fields.start, &reply_fields.start);
+        bson_little_endian32(&reply->fields.num, &reply_fields.num);
 
-        memcpy(&reply->objs, bufptr, len-sizeof(head)-sizeof(fields));
+        memcpy(&reply->objs, bufptr, len-headerSize);
 
         cursor->mm = reply;
         cursor->current.data = NULL;
@@ -252,11 +238,10 @@ class Connection : public node::EventEmitter {
         }
 
         // if this is the last cursor
-        if (!cursor->mm || ! fields.cursorID) {
+        if (!cursor->mm || ! reply_fields.cursorID) {
             FreeCursor();
-            EmitResults();
-
             get_more = false;
+            EmitResults();
             results.Dispose();
             results.Clear();
             results = Persistent<Array>::New(Array::New());
@@ -291,14 +276,7 @@ class Connection : public node::EventEmitter {
 
         if (bson_addr >= ((char*)cursor->mm + cursor->mm->head.len)){
             // current cursor is out of data
-            if (! fields.cursorID) {
-                // cursorID is blank, so there's no more results
-                get_more = false;
-            }
-            else {
-                // cursor isn't empty so we should fetch more results
-                get_more = true;
-            }
+            get_more = true;
 
             // indicate that this is the last result
             return false;
@@ -311,7 +289,81 @@ class Connection : public node::EventEmitter {
         return false;
     }
 
-    bool ConsumeInput() {
+    void BufferMessageToSend(mongo_message *mm) {
+        mongo_header head;
+        bson_little_endian32(&head.len, &mm->head.len);
+        bson_little_endian32(&head.id, &mm->head.id);
+        bson_little_endian32(&head.responseTo, &mm->head.responseTo);
+        bson_little_endian32(&head.op, &mm->head.op);
+
+        int size = mm->head.len;
+        pdebug("buffering message of size %d\n", size);
+
+        char *tmp = new char[writebuflen+size];
+
+        if (writebuf) {
+            memcpy(tmp, writebuf, writebuflen);
+        }
+
+        memcpy(tmp+writebuflen, &head, sizeof(head));
+        memcpy(tmp+writebuflen+sizeof(head), &mm->data, size-sizeof(head));
+        free(mm);
+
+        int ptrdelta = writebufptr - writebuf;
+
+        if (writebuf) {
+            delete [] writebuf;
+        }
+
+        writebuflen = writebuflen + size;
+        writebuf = tmp;
+        writebufptr = tmp + ptrdelta;
+        pdebug("write buf is of size %d\n", writebuflen);
+        pdebug("est lenRem = %d\n", writebuflen-ptrdelta);
+        pdebug("wbuf diff = %d\n", ptrdelta);
+        StartWriteWatcher();
+    }
+
+    void WriteSendBuffer() {
+        pdebug("going to write buffer\n");
+
+        int sock = conn->sock;
+        int lenRemaining = writebuflen-(writebufptr-writebuf);
+
+        pdebug("remaining: %d\n", lenRemaining);
+        while (lenRemaining) {
+            pdebug("trying to write %d\n", lenRemaining);
+            int sent = write(sock, writebufptr, lenRemaining);
+            pdebug("write = %d\n", sent);
+            if (sent == -1) {
+                if (errno == EAGAIN) {
+                    // we need to set the write watcher again and continue
+                    // later
+                    pdebug("EAGAIN\n");
+
+                    StartWriteWatcher();
+                    return;
+                }
+                else {
+                    pdebug("errorno was %d\n", errno);
+                }
+            }
+            writebufptr += sent;
+            lenRemaining -= sent;
+        }
+        if (!lenRemaining) {
+            delete [] writebuf;
+            writebufptr = writebuf = NULL;
+            writebuflen = 0;
+        }
+        pdebug("done! write buf is of size %d\n", writebuflen);
+        pdebug("done! est lenRem = %d\n", writebuflen-(writebufptr-writebuf));
+        pdebug("done! wbuf diff = %d\n", (writebufptr-writebuf));
+        StopWriteWatcher();
+    }
+
+
+    void ConsumeInput() {
         char *tmp;
         char readbuf[chunk_size];
         int32_t readbuflen;
@@ -322,6 +374,7 @@ class Connection : public node::EventEmitter {
             if (readbuflen == -1 && errno == EAGAIN) {
                 // no more input to consume
                 pdebug("len == -1 && errno == EAGAIN\n");
+                return;
             }
             else if (readbuflen <= 0) {
                 // socket problem?
@@ -361,9 +414,8 @@ class Connection : public node::EventEmitter {
         data = mongo_data_append32(data, &zero);
         data = mongo_data_append(data, cursor->ns, sl);
         data = mongo_data_append32(data, &zero);
-        data = mongo_data_append64(data, &fields.cursorID);
+        data = mongo_data_append64(data, &(cursor->mm->fields.cursorID));
         mongo_message_send(conn, mm);
-        state = STATE_READ_HEAD;
 
         StartReadWatcher();
         StopWriteWatcher();
@@ -371,8 +423,8 @@ class Connection : public node::EventEmitter {
 
 
     bool Find(const char *ns, bson *query=0, bson *query_fields=0,
-              int nToReturn=0, int nToSkip=0) {
-
+              int nToReturn=0, int nToSkip=0, int options=0) {
+        pdebug("within Find\n");
         cursor = static_cast<mongo_cursor*>(
                      bson_malloc(sizeof(mongo_cursor)));
 
@@ -382,22 +434,85 @@ class Connection : public node::EventEmitter {
         memcpy(static_cast<void*>(const_cast<char*>(cursor->ns)), ns, sl);
         cursor->conn = conn;
 
-        non_blocking_mongo_find(conn, ns, query, query_fields, nToReturn,
-            nToSkip, 0);
+        char * data;
+        mongo_message * mm = mongo_message_create( 16 + /* header */
+                                                   4 + /*  options */
+                                                   sl + /* ns */
+                                                   4 + 4 + /* skip,return */
+                                                   bson_size( query ) +
+                                                   bson_size( query_fields ) ,
+                                                   0 , 0 , mongo_op_query );
 
+        data = &mm->data;
+        data = mongo_data_append32(data, &options);
+        data = mongo_data_append(data, ns, strlen(ns)+ 1);
+        data = mongo_data_append32(data, &nToSkip);
+        data = mongo_data_append32(data, &nToReturn);
+        data = mongo_data_append(data, query->data, bson_size(query));
+        if (query_fields)
+            data = mongo_data_append(data, query_fields->data, bson_size(query_fields));
+
+        bson_fatal_msg((data == ((char*)mm) + mm->head.len), "query building fail!");
+
+        BufferMessageToSend(mm);
+
+        pdebug("Starting read watcher!\n");
         StartReadWatcher();
     }
 
     void Insert(const char *ns, bson obj) {
-        mongo_insert(conn, ns, &obj);
+        //mongo_insert(conn, ns, &obj);
+        char * data;
+        mongo_message *mm = mongo_message_create( 16 /* header */
+                                                + 4 /* ZERO */
+                                                + strlen(ns)
+                                                + 1 + bson_size(&obj)
+                                                , 0, 0, mongo_op_insert);
+
+        data = &mm->data;
+        data = mongo_data_append32(data, &zero);
+        data = mongo_data_append(data, ns, strlen(ns) + 1);
+        data = mongo_data_append(data, obj.data, bson_size(&obj));
+
+        BufferMessageToSend(mm);
     }
 
     void Remove(const char *ns, bson cond) {
-        mongo_remove(conn, ns, &cond);
+        char * data;
+        mongo_message * mm = mongo_message_create( 16 /* header */
+                                                 + 4  /* ZERO */
+                                                 + strlen(ns) + 1
+                                                 + 4  /* ZERO */
+                                                 + bson_size(&cond)
+                                                 , 0 , 0 , mongo_op_delete );
+
+        data = &mm->data;
+        data = mongo_data_append32(data, &zero);
+        data = mongo_data_append(data, ns, strlen(ns) + 1);
+        data = mongo_data_append32(data, &zero);
+        data = mongo_data_append(data, cond.data, bson_size(&cond));
+        BufferMessageToSend(mm);
     }
 
-    void Update(const char *ns, bson cond, bson obj) {
-        mongo_update(conn, ns, &cond, &obj, 0);
+    void Update(const char *ns, bson cond, bson op, int flags=0) {
+        //mongo_update(conn, ns, &cond, &obj, 0);
+        char * data;
+        mongo_message * mm = mongo_message_create( 16 /* header */
+                                                 + 4  /* ZERO */
+                                                 + strlen(ns) + 1
+                                                 + 4  /* flags */
+                                                 + bson_size(&cond)
+                                                 + bson_size(&op)
+                                                 , 0 , 0 , mongo_op_update );
+
+        data = &mm->data;
+        data = mongo_data_append32(data, &zero);
+        data = mongo_data_append(data, ns, strlen(ns) + 1);
+        data = mongo_data_append32(data, &flags);
+        data = mongo_data_append(data, cond.data, bson_size(&cond));
+        data = mongo_data_append(data, op.data, bson_size(&op));
+
+        BufferMessageToSend(mm);
     }
 
     protected:
@@ -406,6 +521,7 @@ class Connection : public node::EventEmitter {
     New(const Arguments& args) {
         HandleScope scope;
 
+        // XXX where should this be deleted?
         Connection *connection = new Connection();
         connection->Wrap(args.This());
         return args.This();
@@ -415,11 +531,11 @@ class Connection : public node::EventEmitter {
         HandleScope scope;
         results = Persistent<Array>::New(Array::New());
 
+
         cursor = false;
         get_more = false;
-        buflen = 0;
-        buf = bufptr = NULL;
-        state = STATE_READ_HEAD;
+        buflen = writebuflen = 0;
+        buf = bufptr = writebuf = writebufptr = NULL;
 
         ev_init(&read_watcher, io_event);
         read_watcher.data = this;
@@ -585,20 +701,29 @@ class Connection : public node::EventEmitter {
     }
 
     void Event(EV_P_ ev_io *w, int revents) {
+        if (!conn->connected) return;
+        pdebug("event %d\n", conn->connected);
         if (revents & EV_WRITE) {
             pdebug("!!! got a write event\n");
-            StopWriteWatcher();
+            pdebug("!!! writebuflen = %d\n", writebuflen);
+            if (writebuflen) {
+                pdebug("things to write\n");
+                WriteSendBuffer();
+            }
+            else {
+                StopWriteWatcher();
+            }
+
             if (get_more) {
                 RequestMore();
-                return;
             }
             else {
                 Emit(String::New("ready"), 0, NULL);
-                return;
             }
         }
         if (revents & EV_READ) {
             pdebug("!!! got a read event\n");
+            StopReadWatcher();
             ConsumeInput();
             CheckBuffer();
             return;
@@ -627,17 +752,18 @@ class Connection : public node::EventEmitter {
 
     // states
     bool get_more;
-    ReadState state;
 
-    mongo_header head;
-    mongo_reply_fields fields;
     mongo_cursor *cursor;
 
     Persistent<Array> results;
 
     char *buf;
     char *bufptr;
-    int32_t buflen;
+    int buflen;
+
+    char *writebuf;
+    char *writebufptr;
+    int writebuflen;
 
     ev_io read_watcher;
     ev_io write_watcher;

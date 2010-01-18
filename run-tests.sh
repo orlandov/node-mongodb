@@ -1,4 +1,5 @@
 #!/bin/sh
 
-node tests/test_bson.js
-node tests/test_mongo.js
+for f in `ls tests/test_*.js`; do
+    node $f
+done

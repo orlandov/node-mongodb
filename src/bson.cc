@@ -40,6 +40,7 @@ Handle<Value> ObjectID::New(const Arguments &args) {
 
     String::Utf8Value hex(args[0]->ToString());
 
+    // XXX where should this be deleted?
     ObjectID *o = new ObjectID((const char *) *hex);
     o->Wrap(args.This());
     return args.This();
