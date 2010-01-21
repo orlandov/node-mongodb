@@ -90,7 +90,7 @@ encodeBoolean(bson_buffer *bb, const char *name, const Local<Value> element) {
     bson_append_bool(bb, name, value);
 }
 
-void 
+void
 encodeObjectID(bson_buffer *bb, const char *name, const Local<Value> element) {
     // get at the delicious wrapped object centre
     Local<Object> obj = element->ToObject();
@@ -116,7 +116,7 @@ encodeArray(bson_buffer *bb, const char *name, const Local<Value> element) {
         string keyval;
         keybuf << i << endl;
         keybuf >> keyval;
-        
+
         if (val->IsString()) {
             encodeString(arr, keyval.c_str(), val);
         }
@@ -261,62 +261,96 @@ decodeBool(bson_iterator *i) {
     return scope.Close(obj);
 }
 
+Handle<Value>
+decodeArray(bson_iterator *it) {
+    HandleScope scope;
+    bson_iterator sub;
+    bson_iterator_subiterator(it, &sub);
+    Local<Array> obj = Array::New();
+
+    for (int i = 0; bson_iterator_next(&sub); i++) {
+        bson_type type = bson_iterator_type(&sub);
+
+        const char *key = bson_iterator_key(&sub);
+
+        switch (type) {
+            case bson_string:
+                obj->Set(Number::New(i), decodeString(&sub));
+                break;
+            case bson_array:
+                obj->Set(Number::New(i), decodeArray(&sub));
+                break;
+            case bson_object:
+                obj->Set(Number::New(i), decodeObject(&sub));
+                break;
+            case bson_oid:
+                obj->Set(Number::New(i), decodeObjectID(&sub));
+                break;
+            case bson_double:
+                obj->Set(Number::New(i), decodeDouble(&sub));
+                break;
+            case bson_int:
+                obj->Set(Number::New(i), decodeInteger(&sub));
+                break;
+            case bson_bool:
+                obj->Set(Number::New(i), decodeBool(&sub));
+                break;
+        }
+    }
+
+    return scope.Close(obj);
+}
+
+Local<Value>
+decodeObjectIterator(bson_iterator *it) {
+    HandleScope scope;
+    Local<Object> obj = Object::New();
+    while (bson_iterator_next(it)) {
+        bson_type type = bson_iterator_type(it);
+        const char *key = bson_iterator_key(it);
+
+        switch (type) {
+            case bson_string:
+                obj->Set(String::New(key), decodeString(it));
+                break;
+
+             case bson_array:
+                obj->Set(String::New(key), decodeArray(it));
+                break;
+
+            case bson_object:
+                obj->Set(String::New(key), decodeObject(it));
+                break;
+
+            case bson_oid:
+                obj->Set(String::New(key), decodeObjectID(it));
+                break;
+
+            case bson_double:
+                obj->Set(String::New(key), decodeDouble(it));
+                break;
+
+            case bson_int:
+                obj->Set(String::New(key), decodeInteger(it));
+                break;
+
+            case bson_bool:
+                obj->Set(String::New(key), decodeBool(it));
+                break;
+        }
+    }
+
+    return scope.Close(obj);
+}
+
 Local<Value>
 decodeObjectStr(const char *buf) {
     HandleScope scope;
 
     bson_iterator it;
     bson_iterator_init(&it, buf);
-    Local<Object> obj = Object::New();
 
-    while (bson_iterator_next(&it)) {
-        bson_type type = bson_iterator_type(&it);
-        const char *key = bson_iterator_key(&it);
-
-        switch (type) {
-            case bson_string:
-                obj->Set(String::New(key), decodeString(&it));
-                break;
-
-            case bson_array:
-                bson bson;
-                bson_iterator sub;
-                bson_iterator_subiterator(&it, &sub);
-
-                while (bson_iterator_next(&sub)) {
-                    bson_type type = bson_iterator_type(&sub);
-                    printf("got in here %d\n",type);
-                    
-                    const char *key = bson_iterator_key(&sub);
-                    const char *val = bson_iterator_value(&sub);
-
-                    Handle<Value> subobj = decodeObjectStr(val);
-                    obj->Set(String::New(key), subobj);
-                }
-                break;
-
-            case bson_object:
-                obj->Set(String::New(key), decodeObject(&it));
-                break;
-
-            case bson_oid:
-                obj->Set(String::New(key), decodeObjectID(&it));
-                break;
-
-            case bson_double:
-                obj->Set(String::New(key), decodeDouble(&it));
-                break;
-
-            case bson_int:
-                obj->Set(String::New(key), decodeInteger(&it));
-                break;
-
-            case bson_bool:
-                obj->Set(String::New(key), decodeBool(&it));
-                break;
-        }
-    }
-
+    Handle<Value> obj = decodeObjectIterator(&it);
     return scope.Close(obj);
 }
 

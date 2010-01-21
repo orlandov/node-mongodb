@@ -250,3 +250,24 @@ xxdCompare(
 
     assertEquals(true, o.ronnie.cthulhu);
 }
+
+// arrays
+
+{
+    var o = bson.decode(
+        "\x36\x00\x00\x00"        + // size
+        "\x04mahbucket\0"         + // type, key
+        "\x26\x00\x00\x00"        +
+        "\x02"+"0\0"              + // item 0
+        "\x04\x00\x00\x00foo\x00" +
+        "\x02"+"1\0"              + // item 1
+        "\x04\x00\x00\x00bar\x00" +
+        "\x02"+"2\0"              + // item 2
+        "\x04\x00\x00\x00baz\x00" +
+        "\x00" + 
+        "\x00"
+    );
+    assertTrue(o !== undefined);
+    assertTrue(o.mahbucket !== undefined);
+    assertEquals(o.mahbucket, [ 'foo', 'bar', 'baz' ]);
+}

@@ -17,7 +17,7 @@ var mongo = new mongodb.MongoDB();
 var cb = 0;
 
 mongo.addListener("close", function () {
-    assertEquals(cb, 10);
+    assertEquals(cb, 11);
     sys.puts("Tests done!");
 });
 
@@ -44,7 +44,12 @@ mongo.addListener("connection", function () {
         widgets.insert({ foo: 1, shazbot: 1 });
         widgets.insert({ bar: "a", shazbot: 2 });
         widgets.insert({ baz: 42.5, shazbot: 0 });
-        widgets.insert({ baz: 42.5, bucket: [1, 2] });
+        widgets.insert({ baz: 420, bucket: [1, 2] });
+
+        widgets.find({ baz: 420 }).addCallback(function (result) {
+            cb++;
+            assertEquals(result[0].bucket, [1, 2]);
+        });
 
         widgets.find_one({ _id: new mongodb.ObjectID(oid_hex) }).addCallback(function (result) {
             cb++;
