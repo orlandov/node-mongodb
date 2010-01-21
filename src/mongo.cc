@@ -151,6 +151,7 @@ class Connection : public node::EventEmitter {
         ev_io_set(&read_watcher,  conn->sock, EV_READ);
         ev_io_set(&write_watcher, conn->sock, EV_WRITE);
 
+        Ref();
         StartWriteWatcher();
     }
 
@@ -174,10 +175,13 @@ class Connection : public node::EventEmitter {
 
         mongo_destroy(conn);
 
+
         pdebug("closed connection %d %d\n", get_more?1:0, writebuflen);
         StopWriteWatcher();
         StopReadWatcher();
         Emit(String::New("close"), 0, NULL);
+
+        Unref();
     }
 
     void CheckBuffer() {
