@@ -203,6 +203,64 @@ encode(const Arguments &args) {
     return ret;
 }
 
+// Decoding functions
+
+Handle<Value>
+decodeString(bson_iterator *i) {
+    HandleScope scope;
+    const char *val = bson_iterator_string(i);
+    Local<Value> str = String::New(val);
+    return scope.Close(str);
+}
+
+Handle<Value>
+decodeObject(bson_iterator *i) {
+    HandleScope scope;
+    bson bson;
+    bson_iterator_subobject(i, &bson);
+    Handle<Value> sub = decodeObjectStr(bson.data);
+    return scope.Close(sub);
+}
+
+Handle<Value>
+decodeObjectID(bson_iterator *i) {
+    HandleScope scope;
+    char hex_oid[25];
+    bson_oid_t *oid = bson_iterator_oid(i);
+    bson_oid_to_string(oid, hex_oid);
+    Handle<Value> argv[1];
+    argv[0] = String::New(hex_oid);
+
+    Handle<Value> obj =
+        ObjectID::constructor_template->GetFunction()->NewInstance(1, argv);
+
+    return scope.Close(obj);
+}
+
+Handle<Value>
+decodeDouble(bson_iterator *i) {
+    HandleScope scope;
+    double val = bson_iterator_double_raw(i);
+    Local<Value> obj = Number::New(val);
+    return scope.Close(obj);
+}
+
+Handle<Value>
+decodeInteger(bson_iterator *i) {
+    HandleScope scope;
+    double val = bson_iterator_int_raw(i);
+    Local<Value> obj = Integer::New(val);
+    return scope.Close(obj);
+}
+
+Handle<Value>
+decodeBool(bson_iterator *i) {
+    HandleScope scope;
+    bson_bool_t val = bson_iterator_bool(i);
+    Handle<Value> obj = Boolean::New(val);
+    return scope.Close(obj);
+}
+
 Local<Value>
 decodeObjectStr(const char *buf) {
     HandleScope scope;
@@ -216,50 +274,45 @@ decodeObjectStr(const char *buf) {
         const char *key = bson_iterator_key(&it);
 
         switch (type) {
-            case bson_string: {
-                    const char *val = bson_iterator_string(&it);
-                    obj->Set(String::New(key), String::New(val));
+            case bson_string:
+                obj->Set(String::New(key), decodeString(&it));
+                break;
+
+            case bson_array:
+                bson bson;
+                bson_iterator sub;
+                bson_iterator_subiterator(&it, &sub);
+
+                while (bson_iterator_next(&sub)) {
+                    bson_type type = bson_iterator_type(&sub);
+                    printf("got in here %d\n",type);
+                    
+                    const char *key = bson_iterator_key(&sub);
+                    const char *val = bson_iterator_value(&sub);
+
+                    Handle<Value> subobj = decodeObjectStr(val);
+                    obj->Set(String::New(key), subobj);
                 }
                 break;
 
-            case bson_object: {
-                    bson bson;
-                    bson_iterator_subobject(&it, &bson);
-                    Handle<Value> sub = decodeObjectStr(bson.data);
-                    obj->Set(String::New(key), sub);
-                }
+            case bson_object:
+                obj->Set(String::New(key), decodeObject(&it));
                 break;
 
-            case bson_oid: {
-                    char hex_oid[25];
-                    bson_oid_t *oid = bson_iterator_oid(&it);
-                    bson_oid_to_string(oid, hex_oid);
-                    Handle<Value> argv[1];
-                    argv[0] = String::New(hex_oid);
-
-                    obj->Set(String::New(key),
-                             ObjectID::constructor_template
-                             ->GetFunction()->NewInstance(1, argv));
-                }
+            case bson_oid:
+                obj->Set(String::New(key), decodeObjectID(&it));
                 break;
 
-            case bson_double: {
-                    double val = bson_iterator_double_raw(&it);
-                    obj->Set(String::New(key), Number::New(val));
-                }
+            case bson_double:
+                obj->Set(String::New(key), decodeDouble(&it));
                 break;
 
-            case bson_int: {
-                    int val = bson_iterator_int(&it);
-                    obj->Set(String::New(key), Number::New(val));
-                }
+            case bson_int:
+                obj->Set(String::New(key), decodeInteger(&it));
                 break;
 
             case bson_bool:
-                {
-                    bson_bool_t val = bson_iterator_bool(&it);
-                    obj->Set(String::New(key), Boolean::New(val));
-                }
+                obj->Set(String::New(key), decodeBool(&it));
                 break;
         }
     }
