@@ -19,7 +19,7 @@ mongo.addListener('connection', function( ) {
         test.insert( { i: i } );
     }
 
-    test.count().addCallback(function (count) {
+    test.count(null, function (count) {
         assertEquals(count, 1000);
         mongo.close();
     });
