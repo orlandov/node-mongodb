@@ -1,13 +1,12 @@
 #!/usr/bin/env node
 
-process.mixin(GLOBAL, require('mjsunit'));
+assert = require('assert');
+deepEqual = assert.deepEqual;
 
 require.paths.push("lib");
-var mongodb = require( 'mongodb' );
-var sys = require( 'sys' );
+var mongodb = require('mongodb');
+var sys = require('sys');
 var mongo = new mongodb.MongoDB();
-
-jjj = JSON.stringify
 mongo.addListener('connection', function( ) { 
     var test = mongo.getCollection( 'widgets' );
     test.remove();

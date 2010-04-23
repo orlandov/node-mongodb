@@ -2,14 +2,13 @@
 
 // thanks to sifu@github for the testcase
 
-process.mixin(GLOBAL, require('mjsunit'));
+assert = require('assert');
+deepEqual = assert.deepEqual;
 
 require.paths.push("lib");
-var mongodb = require( 'mongodb' );
-var sys = require( 'sys' );
+var mongodb = require('mongodb');
+var sys = require('sys');
 var mongo = new mongodb.MongoDB();
-
-jjj = JSON.stringify
 mongo.addListener('connection', function( ) { 
     var test = mongo.getCollection( 'widgets' );
     test.remove();
@@ -20,7 +19,7 @@ mongo.addListener('connection', function( ) {
     }
 
     test.count(null, function (count) {
-        assertEquals(count, 1000);
+        deepEqual(count, 1000);
         mongo.close();
     });
 });

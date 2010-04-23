@@ -1,8 +1,11 @@
 #!/usr/bin/env node
 
-process.mixin(GLOBAL, require('assert'));
-
-var jjj = JSON.stringify;
+assert = require('assert');
+ok = assert.ok;
+equal = assert.equal;
+throws = assert.throws;
+deepEqual = assert.deepEqual;
+notEqual = assert.notEqual;
 
 var sys = require("sys");
 

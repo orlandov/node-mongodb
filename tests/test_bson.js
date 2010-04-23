@@ -2,10 +2,13 @@ require.paths.push("lib");
 
 var sys     = require("sys"),
     mongo   = require("mongo"),
-    mongodb = require("mongodb");
+    mongodb = require("mongodb"),
+    assert  = require("assert");
 
-process.mixin(GLOBAL, require('assert'));
-jjj = JSON.stringify;
+ok = assert.ok;
+equal = assert.equal;
+throws = assert.throws;
+deepEqual = assert.deepEqual;
 
 var bson = { encode: mongo.encode, decode: mongo.decode };
 
