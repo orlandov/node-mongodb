@@ -387,6 +387,7 @@ class Connection : public node::EventEmitter {
                 // socket problem?
                 pdebug("length error on read %d errno = %d\n", readbuflen, errno);
 		reallyClose();
+		close = false;
             }
             else {
                 tmp = static_cast<char *>(new char[buflen+readbuflen]);
@@ -706,6 +707,7 @@ class Connection : public node::EventEmitter {
             StopReadWatcher();
             StopWriteWatcher();
 	    reallyClose();
+	    close = false;
             return;
         };
         pdebug("event %d %d\n", conn->connected, close ? 1 : 0);
