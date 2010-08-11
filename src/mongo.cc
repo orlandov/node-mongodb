@@ -19,7 +19,7 @@ extern "C" {
 }
 #include "bson.h"
 
-#define DEBUGMODE 0
+#define DEBUGMODE 1
 #define pdebug(...) do{if(DEBUGMODE)printf(__VA_ARGS__);}while(0)
 
 const int chunk_size(4094);
@@ -153,6 +153,7 @@ class Connection : public node::EventEmitter {
 
         Ref();
         StartWriteWatcher();
+	StartReadWatcher();
     }
 
     void Close() {
@@ -385,6 +386,7 @@ class Connection : public node::EventEmitter {
             else if (readbuflen <= 0) {
                 // socket problem?
                 pdebug("length error on read %d errno = %d\n", readbuflen, errno);
+		reallyClose();
             }
             else {
                 tmp = static_cast<char *>(new char[buflen+readbuflen]);
@@ -703,6 +705,7 @@ class Connection : public node::EventEmitter {
         if (!conn->connected) {
             StopReadWatcher();
             StopWriteWatcher();
+	    reallyClose();
             return;
         };
         pdebug("event %d %d\n", conn->connected, close ? 1 : 0);
