@@ -19,7 +19,7 @@ extern "C" {
 }
 #include "bson.h"
 
-#define DEBUGMODE 1
+#define DEBUGMODE 0
 #define pdebug(...) do{if(DEBUGMODE)printf(__VA_ARGS__);}while(0)
 
 const int chunk_size(4094);
