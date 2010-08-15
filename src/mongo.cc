@@ -646,6 +646,7 @@ class Connection : public node::EventEmitter {
 
         bson cond;
         bson obj;
+	int flags = 0; 
 
         if (args.Length() > 1 && !args[1]->IsUndefined()) {
             Local<Object> query(args[1]->ToObject());
@@ -663,7 +664,12 @@ class Connection : public node::EventEmitter {
             bson_empty(&obj);
         }
 
-        connection->Update(*ns, cond, obj);
+	if (args.Length() > 3 && !args[3]->IsUndefined()) {
+	  Local<Integer> jsflags = args[3]->ToInteger();
+	  flags = jsflags->Value();
+	}
+	
+	connection->Update(*ns, cond, obj, flags);
 
         bson_destroy(&cond);
         bson_destroy(&obj);
