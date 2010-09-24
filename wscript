@@ -14,6 +14,8 @@ def configure(conf):
   conf.check_tool('compiler_cxx')
   conf.check_tool('node_addon')
 
+  #conf.check(lib='mongoc', uselib_store='MONGO',libpath='./mongo-c-driver/')
+
   conf.env.append_value("LIBPATH_BSON", abspath("./mongo-c-driver/"))
   conf.env.append_value("LIB_BSON",     "bson")
   conf.env.append_value("CPPPATH_BSON", abspath("./mongo-c-driver/src"))
@@ -26,7 +28,8 @@ def build(bld):
   mongo = bld.new_task_gen('cxx', 'shlib', 'node_addon')
   mongo.cxxflags = "-g"
   mongo.target = 'mongo'
-  mongo.source = "src/mongo.cc src/bson.cc"
+  mongo.source = "src/Connection.cpp src/MongoConnection.cpp src/bson.cpp"
+  #mongo.source = "src/Mongo.cpp"
   mongo.uselib = "MONGO BSON"
 
 def shutdown():
