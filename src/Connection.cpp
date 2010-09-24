@@ -38,7 +38,7 @@ Handle<Value> Connection::New(const Arguments &args)
   mongo->Wrap(args.This());
   mongo->m_results= Persistent<Array>::New(Array::New());
   mongo->m_gettingMore = false;
-  return args.This();
+  return scope.Close(args.This());
 }
 
 Handle<Value> Connection::Connect(const Arguments &args)
