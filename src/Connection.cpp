@@ -47,8 +47,9 @@ Handle<Value> Connection::Connect(const Arguments &args)
   HandleScope scope;
 
   String::Utf8Value conninfo(args[0]->ToString());
-  //Number::New(args[1]->ToNumber());
-  connection->connect(*conninfo, 27017);
+  int port = args[1]->ToNumber()->Value();
+  if(!port) port = 27017;
+  connection->connect(*conninfo, port);
   connection->Ref();
   return scope.Close(Undefined());
 }
