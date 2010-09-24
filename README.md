@@ -97,11 +97,15 @@ Installation
 - Make sure you have git installed.
 - ./update-mongo-c-driver.sh
 - node-waf configure build
-- ./run-tests.sh
+- ./run-tests.sh <-- the tests may or may not work, i'll update them as i get time
 
 BUGS
 ----
 
+The entire binding backend has been rewritten with the exception of the bson parsing.  Please report any bugs to me instead of bugging orlandov about them as they're likely my fault.
+
+
+---
 This package is EXPERIMENTAL, with emphasis on MENTAL. I am working on this in
 my spare time to learn the Node, v8 and MongoDB API's.
 
@@ -127,4 +131,5 @@ SEE ALSO
 AUTHOR
 ------
 
-Orlando Vazquez (ovazquez@gmail.com)
+Lee Smith (notwink@gmail.com)
+Orlando Vazquez (ovazquez@gmail.com) <- Thanks for the bson parsing :)
