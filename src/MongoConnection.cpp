@@ -173,7 +173,7 @@ void MongoConnection::ReadData()
 	    }
 	}
 
-      pdebug("realloc: %p\t%d bytes -- %d + %d\n", m_inboundBuffer.messageBuf, m_inboundBuffer.messageLen+len, m_inboundBuffer.messageLen, len);
+      //pdebug("realloc: %p\t%d bytes -- %d + %d\n", m_inboundBuffer.messageBuf, m_inboundBuffer.messageLen+len, m_inboundBuffer.messageLen, len);
       m_inboundBuffer.messageBuf = (char *) realloc(m_inboundBuffer.messageBuf, m_inboundBuffer.bufferLen+len);
       m_inboundBuffer.index = m_inboundBuffer.messageBuf + m_inboundBuffer.bufferLen;
       memcpy(m_inboundBuffer.index, readbuf, len);
@@ -218,7 +218,7 @@ void MongoConnection::WriteMessage(mongo_message *message)
   pdebug("adding %d bytes to outbound buffer (%d)\n", len, m_outboundBuffer.messageLen);
   
   int currentOffset = m_outboundBuffer.index - m_outboundBuffer.messageBuf;
-  pdebug("realloc: %p\t%d bytes\n", m_outboundBuffer.messageBuf, m_outboundBuffer.messageLen+len);
+  //pdebug("realloc: %p\t%d bytes\n", m_outboundBuffer.messageBuf, m_outboundBuffer.messageLen+len);
   m_outboundBuffer.messageBuf = (char *) realloc(m_outboundBuffer.messageBuf, m_outboundBuffer.messageLen+len);
 
   m_outboundBuffer.index = m_outboundBuffer.messageBuf + currentOffset; // adjust write ptr in case of relocation

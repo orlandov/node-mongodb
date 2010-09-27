@@ -79,6 +79,8 @@ void Connection::onResults(MongoMessage *message)
   cursor.mm = reply;
   cursor.current.data = NULL;
 
+  pdebug("%llu:\t  limit: %d\n", reply->fields.cursorID, m_recLimit);
+
   if(!m_gettingMore)
     {
       m_results.Dispose();
@@ -340,7 +342,7 @@ Handle<Value> Connection::Find(const Arguments &args)
   
   mongo_cursor *cursor = static_cast<mongo_cursor*>(bson_malloc(sizeof(mongo_cursor)));
 
-  if(nToReturn > 0) // track limit so cursor can advance until necessary
+  //if(nToReturn > 0) // track limit so cursor can advance until necessary
     connection->m_recLimit = nToReturn;
 
   int sl = strlen(*ns)+1;
