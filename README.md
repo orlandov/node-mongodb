@@ -105,6 +105,8 @@ BUGS
 The entire binding backend has been rewritten with the exception of the bson parsing.  Please report any bugs to me instead of bugging orlandov about them as they're likely my fault.
 
 
+- need to compartmentalize limit/skip so that embedded finds dont inherit those from the parents
+
 ---
 This package is EXPERIMENTAL, with emphasis on MENTAL. I am working on this in
 my spare time to learn the Node, v8 and MongoDB API's.
