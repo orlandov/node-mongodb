@@ -38,6 +38,8 @@ Handle<Value> Connection::New(const Arguments &args)
   mongo->Wrap(args.This());
   mongo->m_results= Persistent<Array>::New(Array::New());
   mongo->m_gettingMore = false;
+  mongo->m_recLimit = 0;
+  mongo->m_recCount = 0;
   return scope.Close(args.This());
 }
 
@@ -121,11 +123,15 @@ void Connection::onResults(MongoMessage *message)
 	}
     }
 
-  if(reply->fields.cursorID && m_recCount < m_recLimit) // get more data
+  if(reply->fields.cursorID)// && m_recCount < m_recLimit) // get more data
     {
-      pdebug("need to get more data\n");
       m_gettingMore = true;
-      unsigned int count = m_recLimit-m_recCount;
+      unsigned int count = 0;
+
+      if(m_recLimit > 0)
+	count = m_recLimit-m_recCount;
+
+      pdebug("need to get more data %d\n", count);
       mongo_connection* conn = cursor.conn;
       char* data;
       int sl = strlen(m_cursor->ns)+1;
@@ -338,12 +344,12 @@ Handle<Value> Connection::Find(const Arguments &args)
     nToSkip = args[4]->Int32Value();
   }
 
-  pdebug("find on: %s\n", *ns);
+  pdebug("find on: %s (%d)\n", *ns, nToReturn);
   
   mongo_cursor *cursor = static_cast<mongo_cursor*>(bson_malloc(sizeof(mongo_cursor)));
 
   //if(nToReturn > 0) // track limit so cursor can advance until necessary
-    connection->m_recLimit = nToReturn;
+  connection->m_recLimit = nToReturn;
 
   int sl = strlen(*ns)+1;
   cursor->ns = static_cast<char*>(bson_malloc(sl));

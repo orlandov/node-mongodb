@@ -1,6 +1,7 @@
 #include "MongoConnection.h"
 
-#define chunksize 8092
+//#define chunksize 16384
+#define chunksize 8192
 
 MongoConnection::MongoConnection()
 {
@@ -158,6 +159,7 @@ void MongoConnection::ReadData()
   while(true)
     {
       // read the largest chunk we can
+      usleep(100);
       int len = read(m_connection->sock, readbuf, chunksize);
       if(len == -1)
 	{
