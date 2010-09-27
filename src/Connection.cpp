@@ -142,7 +142,7 @@ void Connection::onResults(MongoMessage *message)
       scope.Close(Undefined());
       return;
     }
-
+  
   if(m_cursor)
     {
       // free cursor now in case the results callback issues another find causing a leak
@@ -150,7 +150,7 @@ void Connection::onResults(MongoMessage *message)
       free(m_cursor);
       m_cursor = NULL;
     }
-      
+  
   Emit(String::New("result"), 1, reinterpret_cast<Handle<Value> *>(&m_results));
 
   // clean up and reset state
