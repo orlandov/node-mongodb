@@ -83,6 +83,8 @@ void MongoConnection::disconnect()
   free(m_inboundBuffer.messageBuf);
   memset(&m_outboundBuffer, 0, sizeof(MongoMessage));
   memset(&m_inboundBuffer, 0, sizeof(MongoMessage));
+  close(m_connection->sock);
+  m_connected = false;
   mongo_destroy(m_connection);
   onClose();
 }
@@ -166,7 +168,6 @@ void MongoConnection::ReadData()
 	    }
 	  else
 	    {
-	      // TODO disconnect and clean up
 	      disconnect();
 	      return;
 	    }
@@ -248,7 +249,7 @@ void MongoConnection::WriteData()
 	  WriteWatcher(true);
 	  return;
 	}
-      // TODO disconnect me
+      disconnect();
     }
 
   m_outboundBuffer.index += bytes;
@@ -271,9 +272,7 @@ void MongoConnection::IOEvent(int revents)
     {
       ReadWatcher(false);
       WriteWatcher(false);
-      // TODO
-      //disconnect();
-      //onClose();
+      disconnect();
     }
   //pdebug("event %d %d\n", m_connection->connected, revents);
 
@@ -281,8 +280,6 @@ void MongoConnection::IOEvent(int revents)
     {
       //pdebug("read event\n");
       ReadData();
-      // TODO
-      // read data
     }
 
   if(revents & EV_WRITE)
@@ -296,15 +293,12 @@ void MongoConnection::IOEvent(int revents)
 	  ReadWatcher(true);
 	  onReady();
 	}
-       // TODO
-      // write data
     }
 
   if(revents & EV_ERROR)
     {
       pdebug("error event\n");
-      // TODO
-      // handle error, probably tear down and emit onClose
+      disconnect();
     }
 }
 

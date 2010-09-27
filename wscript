@@ -26,7 +26,7 @@ def configure(conf):
   
 def build(bld):
   mongo = bld.new_task_gen('cxx', 'shlib', 'node_addon')
-  mongo.cxxflags = "-g"
+  mongo.cxxflags = "-O3"
   mongo.target = 'mongo'
   mongo.source = "src/Connection.cpp src/MongoConnection.cpp src/bson.cpp"
   #mongo.source = "src/Mongo.cpp"

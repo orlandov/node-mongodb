@@ -46,7 +46,6 @@ public:
 
   bool isConnected();
 
-  // (TODO: soon to be) virtual functions for inheriting classes to implement
   virtual void onConnected();
   virtual void onResults(MongoMessage *message);
   virtual void onReady();
