@@ -143,6 +143,13 @@ void Connection::onResults(MongoMessage *message)
       return;
     }
 
+  if(m_cursor)
+    {
+      // free cursor now in case the results callback issues another find causing a leak
+      free((void *)m_cursor->ns);
+      free(m_cursor);
+      m_cursor = NULL;
+    }
       
   Emit(String::New("result"), 1, reinterpret_cast<Handle<Value> *>(&m_results));
 
@@ -151,8 +158,7 @@ void Connection::onResults(MongoMessage *message)
   m_results.Dispose();
   m_results = Persistent<Array>::New(Array::New());
   m_gettingMore = false;
-  free((void *)m_cursor->ns);
-  free(m_cursor);
+
   scope.Close(Undefined());
 }
 
@@ -332,8 +338,7 @@ Handle<Value> Connection::Find(const Arguments &args)
 
   pdebug("find on: %s\n", *ns);
   
-  mongo_cursor *cursor = static_cast<mongo_cursor*>(
-				      bson_malloc(sizeof(mongo_cursor)));
+  mongo_cursor *cursor = static_cast<mongo_cursor*>(bson_malloc(sizeof(mongo_cursor)));
 
   if(nToReturn > 0) // track limit so cursor can advance until necessary
     connection->m_recLimit = nToReturn;
@@ -363,7 +368,6 @@ Handle<Value> Connection::Find(const Arguments &args)
   data = mongo_data_append(data, query_fields_bson.data, bson_size(&query_fields_bson));
 
   bson_fatal_msg((data == ((char*)mm) + mm->head.len), "query building fail!");
-
 
   connection->WriteMessage(mm);
   connection->m_cursor = cursor;
