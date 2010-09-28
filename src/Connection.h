@@ -46,6 +46,7 @@ class Connection : public node::EventEmitter, MongoConnection
   void onReady();
   void onResults(MongoMessage *message);
   void onClose();
+  void onDrained();
 
   Persistent<Array> m_results;
   //Handle<Value> results;

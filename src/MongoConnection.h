@@ -50,6 +50,7 @@ public:
   virtual void onResults(MongoMessage *message);
   virtual void onReady();
   virtual void onClose();
+  virtual void onDrained();
 
   // IO
   void WriteMessage(mongo_message *message);

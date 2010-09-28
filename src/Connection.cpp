@@ -72,6 +72,10 @@ void Connection::onClose()
   Emit(String::New("close"), 0, NULL);
 }
 
+void Connection::onDrained()
+{
+  Emit(String::New("drained"), 0, NULL);
+}
 void Connection::onResults(MongoMessage *message)
 {
   HandleScope scope;

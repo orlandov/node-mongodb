@@ -80,8 +80,8 @@ void MongoConnection::disconnect()
 {
   ReadWatcher(false);
   WriteWatcher(false);
-  free(m_outboundBuffer.messageBuf);
-  free(m_inboundBuffer.messageBuf);
+  if(m_outboundBuffer.messageBuf) free(m_outboundBuffer.messageBuf);
+  if(m_inboundBuffer.messageBuf) free(m_inboundBuffer.messageBuf);
   memset(&m_outboundBuffer, 0, sizeof(MongoMessage));
   memset(&m_inboundBuffer, 0, sizeof(MongoMessage));
   close(m_connection->sock);
@@ -103,6 +103,11 @@ void MongoConnection::onConnected()
 void MongoConnection::onClose()
 {
   pdebug("!!! closing connection\n");
+}
+
+void MongoConnection::onDrained()
+{
+  pdebug("!!! outbound drained\n");
 }
 
 void MongoConnection::onResults(MongoMessage *message)
@@ -263,6 +268,7 @@ void MongoConnection::WriteData()
       free(m_outboundBuffer.messageBuf);
       memset(&m_outboundBuffer, 0 , sizeof(MongoMessage));
       WriteWatcher(false);
+      onDrained();
     }
   else
     WriteWatcher(true); // not done writing yet
