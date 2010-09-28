@@ -164,7 +164,7 @@ void MongoConnection::ReadData()
   while(true)
     {
       // read the largest chunk we can
-      usleep(100);
+      usleep(100); // this is dirty but drastically increases performance on large result sets
       int len = read(m_connection->sock, readbuf, chunksize);
       if(len == -1)
 	{
