@@ -179,13 +179,13 @@ void MongoConnection::ReadData()
 	      return;
 	    }
 	}
-
+      pdebug("read %d bytes need %d\n", len, sizeof(mongo_header)+sizeof(mongo_reply_fields));
       //pdebug("realloc: %p\t%d bytes -- %d + %d\n", m_inboundBuffer.messageBuf, m_inboundBuffer.messageLen+len, m_inboundBuffer.messageLen, len);
       m_inboundBuffer.messageBuf = (char *) realloc(m_inboundBuffer.messageBuf, m_inboundBuffer.bufferLen+len);
       m_inboundBuffer.index = m_inboundBuffer.messageBuf + m_inboundBuffer.bufferLen;
       memcpy(m_inboundBuffer.index, readbuf, len);
-
-      if(!m_inboundBuffer.messageLen && len > sizeof(mongo_header)+sizeof(mongo_reply_fields)) // set up header struct so we can watch for completed messages
+      
+      if(!m_inboundBuffer.messageLen && len >= sizeof(mongo_header)+sizeof(mongo_reply_fields)) // set up header struct so we can watch for completed messages
 	{
 	  memcpy(&m_inboundBuffer.messageHeader, m_inboundBuffer.index, sizeof(mongo_header));
 	  m_inboundBuffer.index += sizeof(mongo_header);
